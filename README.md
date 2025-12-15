@@ -1,7 +1,7 @@
 # 🎤 Karaoke SaaS 
 ## Plataforma de Gestión de TurnosAplicación web **Multi-Tenant** para la gestión de colas de karaoke en bares y locales de ocio. Permite a los clientes pedir canciones desde su móvil escaneando un QR, mientras el local proyecta los vídeos y la lista de espera en una pantalla gigante.
 
-## 🚀 Características Principales* **📱 Cliente (Móvil):** Interfaz web ligera (sin login complejo) para buscar canciones y pedir turno.
+## 🚀 Características Principales **📱 Cliente (Móvil):** Interfaz web ligera (sin login complejo) para buscar canciones y pedir turno.
 * **📺 Pantalla Pública (TV):** Vista "Split Screen" (Vídeo YouTube + Lista de Espera) sincronizada en tiempo real.
 * **🧠 Buscador Inteligente:** Filtra automáticamente resultados de YouTube para evitar "covers", "reacciones" o versiones sin letra.
 * **⚡ Tiempo Real:** Uso de WebSockets (`Socket.io`) para actualizaciones instantáneas entre móvil, servidor y TV.
