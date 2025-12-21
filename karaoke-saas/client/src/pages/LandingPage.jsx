@@ -271,6 +271,7 @@ const FeatureCard = ({ icon, title, desc, color }) => {
 };
 
 const PricingCard = ({ name, price, features, highlight }) => {
+  const navigate = useNavigate();
   return (
     <div style={{...styles.pricingCard, ...(highlight ? styles.pricingCardHighlight : {})}}>
       {highlight && <div style={styles.popularBadge}>OFERTA DE LANZAMIENTO</div>}
@@ -288,7 +289,7 @@ const PricingCard = ({ name, price, features, highlight }) => {
           </li>
         ))}
       </ul>
-      <button style={styles.pricingBtnHighlight}>
+      <button style={styles.pricingBtnHighlight} onClick={() => navigate('/sales')}>
         Contactar para Demo
       </button>
     </div>

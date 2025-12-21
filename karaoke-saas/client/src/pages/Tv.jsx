@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic2, Sparkles, QrCode, Clock, PlayCircle, SkipForward, Plus } from 'lucide-react';
+import { Mic2, Sparkles, QrCode, Clock, PlayCircle, SkipForward, FastForward } from 'lucide-react';
 import YouTube from 'react-youtube';
 
 // --- DATOS REALES DE YOUTUBE (KARAOKE) ---
-// Aumentamos la lista inicial para que no se quede corta visualmente
 const COLA_DEMO = [
   { id: 101, videoId: "fJ9rUzIMcZQ", titulo: "Bohemian Rhapsody", artista: "Queen", usuario: "Carlos M.", imagen: "https://img.youtube.com/vi/fJ9rUzIMcZQ/hqdefault.jpg" },
   { id: 102, videoId: "JGwWNGJdvx8", titulo: "Shape of You", artista: "Ed Sheeran", usuario: "Ana G.", imagen: "https://img.youtube.com/vi/JGwWNGJdvx8/hqdefault.jpg" },
@@ -42,7 +41,13 @@ const KaraokeTV = () => {
   
   const playerRef = useRef(null);
 
-  // --- 1. ATAJOS DE TECLADO (DJ CONTROLS) ---
+  // --- 1. LÓGICA DE CONTROL (NEXT) ---
+  const skipSong = () => {
+    // Forzamos el fin del video actual para pasar al siguiente
+    handleVideoEnd();
+  };
+
+  // --- 2. ATAJOS DE TECLADO (DJ CONTROLS) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       const key = e.key.toLowerCase();
@@ -52,13 +57,15 @@ const KaraokeTV = () => {
       if (key === '+' || key === 't') setCountdown(prev => prev + 30);
       // 'S': Skip Countdown (Saltar espera)
       if (key === 's') setCountdown(0);
+      // 'N': Next (Siguiente canción)
+      if (key === 'n') skipSong();
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- 2. RELOJ ---
+  // --- 3. RELOJ ---
   useEffect(() => {
     const timer = setInterval(() => {
       setHora(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -66,7 +73,7 @@ const KaraokeTV = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // --- 3. CUENTA ATRÁS ---
+  // --- 4. CUENTA ATRÁS ---
   useEffect(() => {
     let interval = null;
     if (isPreparing && countdown > 0) {
@@ -75,7 +82,6 @@ const KaraokeTV = () => {
       }, 1000);
     } else if (countdown === 0) {
       setIsPreparing(false);
-      // Auto-reproducir al terminar
       if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
         playerRef.current.playVideo();
       }
@@ -83,7 +89,7 @@ const KaraokeTV = () => {
     return () => clearInterval(interval);
   }, [isPreparing, countdown]);
 
-  // --- 4. GESTIÓN DE COLA (AL TERMINAR VIDEO) ---
+  // --- 5. GESTIÓN DE COLA (AL TERMINAR VIDEO O SALTAR) ---
   const handleVideoEnd = () => {
     if (queue.length > 0) {
       const siguiente = queue[0];
@@ -105,7 +111,6 @@ const KaraokeTV = () => {
       setIsPreparing(true);
       setIsFullscreen(false); 
     } else {
-      // Reiniciar demo si se vacía
       setCountdown(60);
       setIsPreparing(true);
     }
@@ -148,14 +153,12 @@ const KaraokeTV = () => {
         {isFullscreen && <span style={{ marginLeft: '15px', color: '#00f2ff', fontSize: '14px' }}>[MODO CINE]</span>}
       </div>
 
-      {/* CONTROLES VISUALES (HINT) */}
-      {isPreparing && (
-        <div style={styles.shortcutsHint}>
-          <span>[S] Saltar</span>
-          <span>[+] +30s</span>
+      {/* HINT DE ATAJOS */}
+      <div style={styles.shortcutsHint}>
+          <span>[S] Saltar Espera</span>
+          <span>[N] Siguiente Canción</span>
           <span>[F] Pantalla Grande</span>
-        </div>
-      )}
+      </div>
 
       {/* GRID PRINCIPAL */}
       <div style={{
@@ -179,6 +182,7 @@ const KaraokeTV = () => {
             animate={{ boxShadow: `0 0 80px ${glowColor}40` }}
             transition={{ duration: 1 }}
           >
+
             {/* CAPA DE PREPARACIÓN */}
             <AnimatePresence>
               {isPreparing && (
@@ -215,12 +219,12 @@ const KaraokeTV = () => {
                         <PlayCircle /> ¡Acércate al escenario!
                       </p>
                       
-                      {/* --- NUEVO BOTÓN SALTAR --- */}
+                      {/* BOTÓN SALTAR ESPERA */}
                       <button 
                         onClick={() => setCountdown(0)}
                         style={styles.skipButton}
                       >
-                        <SkipForward size={20} /> SALTAR AHORA
+                        <SkipForward size={20} /> SALTAR ESPERA
                       </button>
                     </div>
                   </motion.div>
@@ -239,6 +243,7 @@ const KaraokeTV = () => {
                 />
             </div>
 
+            {/* OVERLAY INFO (Parte inferior) */}
             {!isPreparing && (
               <motion.div 
                 initial={{ y: 100 }}
@@ -261,6 +266,14 @@ const KaraokeTV = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* --- BOTONES DE CONTROL (SOLO SALTAR) --- */}
+                <div style={styles.controlsBar}>
+                    <button onClick={skipSong} style={styles.controlBtn} title="Siguiente Canción">
+                        <FastForward size={24} fill="white"/>
+                    </button>
+                </div>
+
               </motion.div>
             )}
           </motion.div>
@@ -292,7 +305,7 @@ const KaraokeTV = () => {
               </p>
             </div>
 
-            {/* CARD 2: COLA (Corregido para ver más items) */}
+            {/* CARD 2: COLA */}
             <div style={{ ...styles.card, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
               <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ width: '6px', height: '24px', backgroundColor: '#bd00ff', borderRadius: '4px' }}></span>
@@ -301,7 +314,6 @@ const KaraokeTV = () => {
               
               <div style={styles.queueList}>
                 <AnimatePresence mode="popLayout">
-                  {/* Aseguramos mostrar 3 items */}
                   {queue.slice(0, 3).map((item, index) => (
                     <motion.div
                       key={item.id}
@@ -328,7 +340,7 @@ const KaraokeTV = () => {
               </div>
             </div>
 
-            {/* CARD 3: QR (Hacemos un poco más compacto para dejar sitio a la lista) */}
+            {/* CARD 3: QR */}
             <div style={styles.qrCard}>
               <div style={{ background: 'white', padding: '8px', borderRadius: '10px', width: 'fit-content', margin: '0 auto 10px auto' }}>
                   <QrCode size={80} color="black" />
@@ -367,248 +379,39 @@ const KaraokeTV = () => {
 
 // --- ESTILOS INLINE ---
 const styles = {
-  container: {
-    width: '100vw',
-    height: '100vh',
-    backgroundColor: '#000',
-    color: '#fff',
-    fontFamily: 'sans-serif',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  background: {
-    position: 'absolute',
-    inset: 0,
-    background: 'linear-gradient(135deg, #1a0b2e 0%, #000000 50%, #0d2b2e 100%)',
-    zIndex: 0,
-  },
-  blob1: {
-    position: 'absolute',
-    top: '10%',
-    left: '20%',
-    width: '400px',
-    height: '400px',
-    background: 'rgba(189, 0, 255, 0.3)',
-    borderRadius: '50%',
-    filter: 'blur(100px)',
-  },
-  blob2: {
-    position: 'absolute',
-    bottom: '10%',
-    right: '20%',
-    width: '400px',
-    height: '400px',
-    background: 'rgba(0, 242, 255, 0.3)',
-    borderRadius: '50%',
-    filter: 'blur(100px)',
-  },
-  clockContainer: {
-    position: 'absolute',
-    top: '30px',
-    right: '30px',
-    zIndex: 50,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    padding: '10px 20px',
-    borderRadius: '30px',
-    border: '1px solid rgba(255,255,255,0.2)',
-    display: 'flex',
-    alignItems: 'center',
-    fontSize: '24px',
-    fontWeight: 'bold',
-    backdropFilter: 'blur(10px)',
-  },
-  shortcutsHint: {
-    position: 'absolute',
-    top: '30px',
-    left: '30px',
-    zIndex: 50,
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: '12px',
-    display: 'flex',
-    gap: '15px',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-  },
-  mainGrid: {
-    position: 'relative',
-    zIndex: 10,
-    display: 'flex',
-    height: '100%',
-    padding: '25px', 
-    boxSizing: 'border-box',
-    transition: 'all 0.5s ease',
-  },
-  leftColumn: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-  },
-  rightColumnWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'all 0.5s ease',
-    overflow: 'hidden', 
-  },
-  rightColumnContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '20px',
-    height: '100%',
-    width: '100%', 
-  },
-  videoContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-    overflow: 'hidden',
-    position: 'relative',
-    transition: 'all 0.5s ease', 
-  },
-  prepOverlay: {
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.95)',
-    zIndex: 20,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backdropFilter: 'blur(10px)',
-  },
-  prepContent: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    textAlign: 'center',
-  },
-  countdownCircle: {
-    width: '250px',
-    height: '250px',
-    borderRadius: '50%',
-    border: '10px solid #00f2ff',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 0 50px rgba(0, 242, 255, 0.5)',
-    background: 'radial-gradient(circle, rgba(0,242,255,0.1) 0%, transparent 70%)',
-  },
-  skipButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    padding: '10px 20px',
-    borderRadius: '30px',
-    color: 'white',
-    fontSize: '14px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    transition: 'background 0.3s',
-  },
-  videoOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: '30px',
-    background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.9) 60%, transparent 100%)',
-  },
-  nowPlayingInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '25px',
-  },
-  coverArt: {
-    width: '100px',
-    height: '100px',
-    borderRadius: '15px',
-    overflow: 'hidden',
-    border: '2px solid rgba(255,255,255,0.2)',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-  },
-  songTitleBig: {
-    fontSize: '48px',
-    fontWeight: '800',
-    margin: 0,
-    marginBottom: '10px',
-    lineHeight: 1,
-    textShadow: '0 2px 10px rgba(0,0,0,0.5)',
-  },
-  artistInfo: {
-    display: 'flex',
-    alignItems: 'center',
-    fontSize: '24px',
-  },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    backdropFilter: 'blur(20px)',
-    borderRadius: '24px',
-    padding: '20px', // Reducido un poco para ganar espacio
-    border: '1px solid rgba(255,255,255,0.1)',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-    flexShrink: 0, // Evita que se aplaste
-  },
-  cardHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '10px',
-  },
-  queueList: {
-    flex: 1,
-    overflowY: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
-  queueItem: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: '16px',
-    padding: '12px',
-    border: '1px solid rgba(255,255,255,0.05)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '15px',
-  },
-  rankNumber: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 'bold',
-    fontSize: '14px',
-    boxShadow: '0 4px 10px rgba(0, 114, 255, 0.3)',
-  },
-  qrCard: {
-    background: 'linear-gradient(135deg, #bd00ff 0%, #ff0055 100%)',
-    borderRadius: '24px',
-    padding: '15px',
-    boxShadow: '0 10px 40px rgba(189, 0, 255, 0.3)',
-    flexShrink: 0,
-  },
-  tickerContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '60px',
-    background: 'linear-gradient(90deg, #240b36 0%, #c31432 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    overflow: 'hidden',
-    zIndex: 20,
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-  },
-  tickerItem: {
-    color: '#fff',
-    fontSize: '20px',
-    fontWeight: 'bold',
-    margin: '0 40px',
-    display: 'flex',
-    alignItems: 'center',
-  },
+  container: { width: '100vw', height: '100vh', backgroundColor: '#000', color: '#fff', fontFamily: 'sans-serif', overflow: 'hidden', position: 'relative' },
+  background: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a0b2e 0%, #000000 50%, #0d2b2e 100%)', zIndex: 0 },
+  blob1: { position: 'absolute', top: '10%', left: '20%', width: '400px', height: '400px', background: 'rgba(189, 0, 255, 0.3)', borderRadius: '50%', filter: 'blur(100px)' },
+  blob2: { position: 'absolute', bottom: '10%', right: '20%', width: '400px', height: '400px', background: 'rgba(0, 242, 255, 0.3)', borderRadius: '50%', filter: 'blur(100px)' },
+  clockContainer: { position: 'absolute', top: '30px', right: '30px', zIndex: 50, backgroundColor: 'rgba(0,0,0,0.6)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', fontSize: '24px', fontWeight: 'bold', backdropFilter: 'blur(10px)' },
+  shortcutsHint: { position: 'absolute', top: '30px', left: '30px', zIndex: 50, color: 'rgba(255,255,255,0.3)', fontSize: '12px', display: 'flex', gap: '15px', fontWeight: 'bold', textTransform: 'uppercase' },
+  mainGrid: { position: 'relative', zIndex: 10, display: 'flex', height: '100%', padding: '25px', boxSizing: 'border-box', transition: 'all 0.5s ease' },
+  leftColumn: { display: 'flex', flexDirection: 'column', height: '100%' },
+  rightColumnWrapper: { display: 'flex', flexDirection: 'column', transition: 'all 0.5s ease', overflow: 'hidden' },
+  rightColumnContent: { display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', width: '100%' },
+  videoContainer: { flex: 1, backgroundColor: '#000', overflow: 'hidden', position: 'relative', transition: 'all 0.5s ease' },
+  prepOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' },
+  prepContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' },
+  countdownCircle: { width: '250px', height: '250px', borderRadius: '50%', border: '10px solid #00f2ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 50px rgba(0, 242, 255, 0.5)', background: 'radial-gradient(circle, rgba(0,242,255,0.1) 0%, transparent 70%)' },
+  
+  // ESTILOS NUEVOS PARA LOS BOTONES
+  skipButton: { background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: '10px 20px', borderRadius: '30px', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.3s' },
+  controlsBar: { position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '10px' },
+  controlBtn: { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(5px)' },
+  
+  videoOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '30px', background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.9) 60%, transparent 100%)', zIndex: 30 },
+  nowPlayingInfo: { display: 'flex', alignItems: 'center', gap: '25px' },
+  coverArt: { width: '100px', height: '100px', borderRadius: '15px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' },
+  songTitleBig: { fontSize: '48px', fontWeight: '800', margin: 0, marginBottom: '10px', lineHeight: 1, textShadow: '0 2px 10px rgba(0,0,0,0.5)' },
+  artistInfo: { display: 'flex', alignItems: 'center', fontSize: '24px' },
+  card: { backgroundColor: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', flexShrink: 0 },
+  cardHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' },
+  queueList: { flex: 1, overflowY: 'hidden', display: 'flex', flexDirection: 'column', gap: '10px' },
+  queueItem: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '15px' },
+  rankNumber: { width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 4px 10px rgba(0, 114, 255, 0.3)' },
+  qrCard: { background: 'linear-gradient(135deg, #bd00ff 0%, #ff0055 100%)', borderRadius: '24px', padding: '15px', boxShadow: '0 10px 40px rgba(189, 0, 255, 0.3)', flexShrink: 0 },
+  tickerContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60px', background: 'linear-gradient(90deg, #240b36 0%, #c31432 100%)', display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.1)' },
+  tickerItem: { color: '#fff', fontSize: '20px', fontWeight: 'bold', margin: '0 40px', display: 'flex', alignItems: 'center' },
 };
 
 export default KaraokeTV;
