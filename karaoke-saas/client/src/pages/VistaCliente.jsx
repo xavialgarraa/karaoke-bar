@@ -37,10 +37,10 @@ const VistaCliente = () => {
 
     setBuscando(true); // Mostramos "Buscando..." mientras escribe
 
-    // DEBOUNCE AUMENTADO A 1000ms (1 segundo) para ahorrar peticiones
+    // DEBOUNCE AUMENTADO A 3000ms (3 segundos) para ahorrar peticiones
     const delayBusqueda = setTimeout(async () => {
         try {
-          const response = await fetch(`http://localhost:3001/api/youtube/search?query=${encodeURIComponent(busqueda)}`);
+          const response = await fetch(`${import.meta.env.VITE_CLIENT_URL}/api/youtube/search?query=${encodeURIComponent(busqueda)}`);
           const data = await response.json();
 
           if (response.status !== 200) {
@@ -72,7 +72,7 @@ const VistaCliente = () => {
         } finally {
             setBuscando(false); // Ocultamos carga
         }
-    }, 1000); // <--- TIEMPO DE ESPERA AUMENTADO
+    }, 3000); // <--- TIEMPO DE ESPERA AUMENTADO
 
     return () => clearTimeout(delayBusqueda);
   }, [busqueda]);
@@ -318,7 +318,6 @@ const VistaCliente = () => {
 };
 
 // --- ESTILOS EN LÍNEA (CSS-IN-JS) ---
-// (Mismos estilos que antes, funcionan perfecto)
 const styles = {
   container: { minHeight: '100vh', background: '#000', color: '#fff', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', position: 'relative', overflowX: 'hidden' },
   background: { position: 'fixed', inset: 0, background: 'linear-gradient(to bottom, #1a0b2e, #000)', zIndex: 0 },

@@ -7,6 +7,7 @@ import AdminPage from './pages/AdminPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import VistaCliente from './pages/VistaCliente.jsx'
 import SalesPage from './pages/SalesPage.jsx'
+import VistaSuperAdmin from './pages/VistaSuperAdmin.jsx'
 import Tv from './pages/Tv.jsx'
 import "./index.css";
 
@@ -23,6 +24,7 @@ function App() {
         <Route path="/bar-demo" element={<VistaCliente />} />
         <Route path="/admin/dashboard" element={<AdminPage />} />
         <Route path="/sales" element={<SalesPage />} />
+        <Route path="/superadmin" element={<VistaSuperAdmin />} />
       </Routes>
     </Router>
   );

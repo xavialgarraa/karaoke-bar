@@ -2,104 +2,110 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-//const pool = require('./config/db'); // Tu conexión a PostgreSQL
-require('dotenv').config(); // Cargar variables de entorno
+const pool = require('../config/db'); // MySQL Pool
+require('dotenv').config(); 
 
-// --- IMPORTAR RUTAS ---
-//const authRoutes = require('./routes/authRoutes');
-const youtubeRoutes = require('../routes/YoutubeRoutes');
+const apiRoutes = require('../routes/api');
 
-// --- CONFIGURACIÓN INICIAL ---
 const app = express();
 const server = http.createServer(app);
 
-// Middlewares
-app.use(cors()); // Permitir peticiones desde el Frontend
-app.use(express.json()); // Entender JSON en el body
+app.use(cors());
+app.use(express.json());
 
-// --- RUTAS REST API (Backend tradicional) ---
-//app.use('/api/auth', authRoutes);       // Login de dueños
-app.use('/api/youtube', youtubeRoutes); // Buscador de canciones
+app.use('/api', apiRoutes);
 
-// Ruta de prueba para ver si el server vive
 app.get('/', (req, res) => {
-    res.send('🎤 Karaoke API Funcionando Correctamente');
+    res.send('🎤 Karaoke API (MySQL Version) Funcionando');
 });
 
-// --- CONFIGURACIÓN SOCKET.IO (Tiempo Real) ---
 const io = new Server(server, {
-    cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:5173", // URL de tu frontend
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 io.on("connection", (socket) => {
-    console.log(`🔌 Cliente conectado: ${socket.id}`);
+    console.log(`🔌 Cliente: ${socket.id}`);
 
-    // EVENTO 1: Unirse a la sala de un bar específico
-    socket.on("unirse_bar", (slugBar) => {
-        socket.join(slugBar);
-        console.log(`👤 Socket ${socket.id} entró al bar: ${slugBar}`);
-    });
-
-    // EVENTO 2: Cliente pide canción
-    socket.on("pedir_cancion", async (data) => {
-        const { slugBar, usuario, cancion } = data;
-        // data.cancion debería ser un objeto con { titulo, artista, videoId, cover }
-        
-        console.log(`🎵 Nueva petición en ${slugBar}: ${cancion.titulo} por ${usuario}`);
-
+    socket.on("unirse_bar", async (slug) => {
         try {
-            // 1. Guardar en Base de Datos (Opcional, pero recomendado)
-            // Asegúrate de tener esta tabla 'cola' creada o comenta estas líneas si aún no quieres DB
-            /*
-            const query = `
-                INSERT INTO cola (bar_slug, usuario, titulo, artista, video_id, cover_url, estado) 
-                VALUES ($1, $2, $3, $4, $5, $6, 'espera') 
-                RETURNING *
-            `;
-            const values = [slugBar, usuario, cancion.titulo, cancion.artista, cancion.videoId, cancion.cover];
-            const result = await pool.query(query, values);
-            const cancionGuardada = result.rows[0];
-            */
-           
-            // Si no usas DB todavía, usamos los datos que llegan directo:
-            const cancionParaEmitir = {
-                id: Date.now(), // ID temporal
-                usuario,
-                titulo: cancion.titulo,
-                artista: cancion.artista,
-                videoId: cancion.videoId || cancion.id, // Ajuste según venga de YouTube
-                imagen: cancion.cover || cancion.imagen
-            };
-
-            // 2. Emitir A TODOS en ese bar (incluida la TV)
-            // Usamos 'actualizar_cola' que es lo que espera el Frontend de la TV
-            io.to(slugBar).emit("actualizar_cola", cancionParaEmitir);
-
+            // MySQL usa ? como placeholder
+            const [rows] = await pool.query("SELECT id, nombre FROM bars WHERE slug = ?", [slug]);
+            
+            if (rows.length > 0) {
+                socket.join(slug);
+                console.log(`👤 Unido a: ${rows[0].nombre}`);
+            } else {
+                socket.emit("error_bar", "Bar no encontrado");
+            }
         } catch (err) {
-            console.error("❌ Error guardando canción:", err);
-            socket.emit("error", "No se pudo pedir la canción");
+            console.error(err);
         }
     });
 
-    socket.on("disconnect", () => {
-        console.log("❌ Cliente desconectado");
+    socket.on("pedir_cancion", async (data) => {
+        const { slug, usuario, cancion } = data;
+        console.log(`🎵 Petición: ${cancion.titulo}`);
+
+        try {
+            // 1. Obtener ID del Bar
+            const [barRows] = await pool.query("SELECT id FROM bars WHERE slug = ?", [slug]);
+            if (barRows.length === 0) return;
+            const barId = barRows[0].id;
+            const videoId = cancion.videoId || cancion.id;
+
+            // 2. Guardar en Catálogo (UPSERT en MySQL)
+            await pool.query(`
+                INSERT INTO catalogo_canciones (video_id, titulo, artista, cover_url)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE veces_cantada_global = veces_cantada_global + 1
+            `, [videoId, cancion.titulo, cancion.artista, cancion.cover]);
+
+            // 3. Calcular Turno
+            const [countRows] = await pool.query(
+                "SELECT COUNT(*) as count FROM peticiones WHERE bar_id = ? AND estado = 'espera'",
+                [barId]
+            );
+            const turno = countRows[0].count + 1;
+            const tiempoEspera = (turno - 1) * 4;
+
+            // 4. Insertar en Cola (MySQL no tiene RETURNING, así que construimos el objeto)
+            const [insertResult] = await pool.query(`
+                INSERT INTO peticiones 
+                (bar_id, video_id, titulo, artista, cover_url, usuario_nombre, usuario_avatar, estado, turno_numero)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'espera', ?)
+            `, [barId, videoId, cancion.titulo, cancion.artista, cancion.cover, usuario.nombre, usuario.avatar, turno]);
+
+            const nuevoId = insertResult.insertId;
+
+            // Objeto para emitir
+            const objetoSocket = {
+                id: nuevoId,
+                titulo: cancion.titulo,
+                artista: cancion.artista,
+                usuario: usuario.nombre,
+                avatar: usuario.avatar,
+                cover: cancion.cover,
+                videoId: videoId,
+                turnoAsignado: turno
+            };
+
+            // 5. Emitir Eventos
+            socket.emit("turno_confirmado", {
+                turno: turno,
+                tiempoEspera: tiempoEspera,
+                cancion: objetoSocket
+            });
+
+            io.to(slug).emit("nueva_cancion_anadida", objetoSocket);
+
+        } catch (err) {
+            console.error("❌ Error MySQL:", err);
+            socket.emit("error_peticion", "Error en base de datos");
+        }
     });
 });
 
-// --- ARRANCAR SERVIDOR ---
 const PORT = process.env.PORT || 3001;
-
-server.listen(PORT, async () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-    
-    // Test de conexión a DB al arrancar
-    try {
-        await pool.query('SELECT NOW()');
-        console.log("✅ Conexión a Base de Datos exitosa");
-    } catch (err) {
-        console.error("⚠️ Error conectando a la Base de Datos:", err.message);
-    }
+server.listen(PORT, () => {
+    console.log(`🚀 Server MySQL corriendo en ${PORT}`);
 });
