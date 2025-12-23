@@ -27,12 +27,13 @@ router.get('/catalog/random', catalogController.getRandomSong); // Canción alea
 // ==========================================
 
 // Gestión de Cola
-router.get('/queue/:slug', verifyToken, adminController.getQueue);          // Ver cola
+router.get('/queue/:slug', adminController.getQueue);          // Ver cola
 router.delete('/queue/:id', verifyToken, adminController.deleteFromQueue);  // Borrar
 router.post('/queue/reorder', verifyToken, adminController.reorderQueue);   // Reordenar
 
 // Configuración
 router.put('/bar/:currentSlug', verifyToken, adminController.updateBarConfig); // Editar bar
+router.get('/bar/data/:slug', verifyToken, adminController.getBarInfo);              // Datos del bar
 
 // ... al final del archivo
 

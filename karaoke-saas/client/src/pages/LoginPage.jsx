@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic2, Lock, Mail, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
 
+// URL del Backend
+const API_URL = import.meta.env.VITE_CLIENT_URL || "http://localhost:3001";
+
 const LoginPage = () => {
   const navigate = useNavigate();
   
@@ -12,7 +15,7 @@ const LoginPage = () => {
   const [focusedInput, setFocusedInput] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState(''); // Mensaje de éxito para recuperación
+  const [successMsg, setSuccessMsg] = useState('');
 
   // --- ANIMACIONES CSS INYECTADAS ---
   useEffect(() => {
@@ -35,36 +38,100 @@ const LoginPage = () => {
     setError('');
   };
 
-  // --- HANDLER LOGIN ---
+  // --- FUNCIÓN AUXILIAR PARA DECODIFICAR JWT ---
+  const parseJwt = (token) => {
+    try {
+      return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // --- HANDLER LOGIN (Conectado) ---
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      if (formData.email === 'admin@bar.com' && formData.password === '1234') {
-        localStorage.setItem('karaoke_token', 'token_falso_demo');
-        navigate('/admin/dashboard'); 
-      } else {
-        if (formData.email !== '') setError('Credenciales incorrectas. (Demo: admin@bar.com / 1234)');
-        else setError('Por favor, rellena todos los campos.');
+    setError('');
+
+    try {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: formData.email,
+                password: formData.password
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Credenciales incorrectas');
+        }
+
+        // LOGIN EXITOSO
+        const token = data.token;
+        localStorage.setItem('karaoke_token', token);
+
+        // Obtener Slug (del body o del token)
+        let barSlug = data.slug;
+        if (!barSlug) {
+            const decoded = parseJwt(token);
+            if (decoded && decoded.slug) {
+                barSlug = decoded.slug;
+            }
+        }
+
+        if (barSlug) {
+            navigate(`/admin/dashboard/${barSlug}`);
+        } else {
+            setError("Error: No se encontró el bar asociado a este usuario.");
+        }
+
+    } catch (err) {
+        console.error("Login error:", err);
+        setError(err.message || "Error de conexión con el servidor");
+    } finally {
         setIsLoading(false);
-      }
-    }, 1500); 
+    }
   };
 
-  // --- HANDLER RECUPERAR PASS ---
+  // --- HANDLER RECUPERAR PASS (Conectado) ---
   const handleForgot = async (e) => {
     e.preventDefault();
+    
     if (!formData.email) {
         setError('Introduce tu email para recuperar la contraseña.');
         return;
     }
+
     setIsLoading(true);
-    // Simulación de envío de email
-    setTimeout(() => {
-        setIsLoading(false);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+        // Petición real al endpoint indicado
+        const response = await fetch(`${API_URL}/api/auth/forgot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: formData.email })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'No se pudo enviar el correo de recuperación.');
+        }
+
+        // Éxito
         setSuccessMsg(`Hemos enviado un enlace de recuperación a ${formData.email}`);
-        setError('');
-    }, 1500);
+        
+    } catch (err) {
+        console.error("Forgot Password error:", err);
+        setError(err.message || "Error al conectar con el servidor.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
@@ -107,7 +174,7 @@ const LoginPage = () => {
                 }}>
                 <Mail size={20} color={focusedInput === 'email' ? '#00f2ff' : '#666'} style={styles.inputIcon} />
                 <input 
-                    type="email" name="email" placeholder="ej: contacto@barmanolo.es"
+                    type="email" name="email" placeholder="ej: admin@mibar.com"
                     value={formData.email} onChange={handleChange}
                     onFocus={() => setFocusedInput('email')} onBlur={() => setFocusedInput(null)}
                     style={styles.input} required
@@ -183,7 +250,7 @@ const LoginPage = () => {
         </form>
 
         <div style={styles.footer}>
-          <p>¿No tienes cuenta? <span onClick={() => navigate('/sales')} style={styles.link}>Contacta con ventas</span></p>
+          <p>¿No tienes cuenta? <span onClick={() => navigate('/')} style={styles.link}>Contacta con ventas</span></p>
         </div>
       </div>
     </div>

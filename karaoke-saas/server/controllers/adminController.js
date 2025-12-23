@@ -22,6 +22,20 @@ const getQueue = async (req, res) => {
     }
 };
 
+const getBarInfo = async (req, res) => {
+    const { slug } = req.params;
+    try {
+        const [rows] = await pool.query("SELECT id, nombre, ubicacion, plan, slug FROM bars WHERE slug = ?", [slug]);
+
+        if (rows.length === 0) return res.status(404).json({ message: 'Bar no encontrado' });
+
+        res.json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error obteniendo información del bar' });
+    }
+};
+
 // 2. ELIMINAR CANCIÓN (Papelera)
 const deleteFromQueue = async (req, res) => {
     const { id } = req.params; 
@@ -87,4 +101,4 @@ const updateBarConfig = async (req, res) => {
     }
 };
 
-module.exports = { getQueue, deleteFromQueue, reorderQueue, updateBarConfig };
+module.exports = { getQueue, deleteFromQueue, reorderQueue, updateBarConfig, getBarInfo };

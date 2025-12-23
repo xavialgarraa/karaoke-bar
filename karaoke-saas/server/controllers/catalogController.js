@@ -5,7 +5,7 @@ const getRandomSong = async (req, res) => {
         const [rows] = await pool.query(`
             SELECT *
                 FROM catalogo_canciones
-                ORDER BY RAND() * POW(veces_cantada_global + 1, 2) DESC
+                ORDER BY RAND()
                 LIMIT 1
 
         `);
