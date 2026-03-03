@@ -39,7 +39,7 @@
 * Git
 
 ###2. Clonar el repositorio```bash
-git clone https://github.com/tu-usuario/karaoke-app.git
+git clone https://github.com/xavialgarraa/karaoke-bar
 cd karaoke-app
 
 ```
