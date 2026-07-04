@@ -563,9 +563,9 @@ const KaraokeTV = () => {
               <div style={styles.qrCard}>
                 <p style={styles.qrLabel}>Escanea y pide tu canción</p>
                 <div style={styles.qrInner}>
-                  <QRCode value={`${window.location.origin}/bar/${slug}`} size={120} bgColor="#ffffff" fgColor="#0a0a0a" />
+                  <QRCode value={`${window.location.origin}/${slug}`} size={120} bgColor="#ffffff" fgColor="#0a0a0a" />
                 </div>
-                <p style={styles.qrSubLabel}>{window.location.host}/bar/{slug}</p>
+                <p style={styles.qrSubLabel}>{window.location.host}/{slug}</p>
               </div>
             </motion.div>
           )}
