@@ -63,6 +63,7 @@ const AppContent = ({ slug, isSimulator }) => {
   const [resultados, setResultados] = useState([]);
 
   // TICKET STATE
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [miTicket, setMiTicket] = useState(null);
   const [estadoCola, setEstadoCola] = useState({ personasDelante: 0, tiempoEspera: 0, esMiTurno: false });
@@ -144,6 +145,15 @@ const AppContent = ({ slug, isSimulator }) => {
   useEffect(() => {
     socketRef.current = io(API_URL);
     socketRef.current.emit('unirse_bar', slug);
+
+    // Auto-reconnect: rejoin room and recalculate position if socket drops
+    socketRef.current.on('connect', () => {
+        socketRef.current.emit('unirse_bar', slug);
+        const currentTicket = miTicketRef.current;
+        if (currentTicket?.cancion?.id) {
+            actualizarEstadoCola(currentTicket.cancion.id);
+        }
+    });
 
     // A. CONFIRMACIÓN DE PEDIDO
     socketRef.current.on('turno_confirmado', (data) => {
@@ -424,7 +434,7 @@ const AppContent = ({ slug, isSimulator }) => {
                       <button onClick={resetear} style={styles.actionBtnPrimary}>¡Ya he cantado! (Salir)</button>
                   ) : (
                       <>
-                        <motion.button whileTap={{scale:0.95}} onClick={resetear} style={styles.actionBtnSecondary}><RotateCcw size={16} /> Cancelar</motion.button>
+                        <motion.button whileTap={{scale:0.95}} onClick={() => setShowConfirmCancel(true)} style={styles.actionBtnSecondary}><RotateCcw size={16} /> Cancelar</motion.button>
                         <motion.button whileTap={{scale:0.95}} onClick={() => navigate('/')} style={styles.actionBtnPrimary}><Home size={16} /> Salir</motion.button>
                       </>
                   )}
@@ -433,6 +443,32 @@ const AppContent = ({ slug, isSimulator }) => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* MODAL CONFIRMACIÓN CANCELAR */}
+      <AnimatePresence>
+        {showConfirmCancel && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '20px', backdropFilter: 'blur(8px)' }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }}
+              style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '24px', padding: '28px', width: '100%', maxWidth: '400px' }}
+            >
+              <h3 style={{ margin: '0 0 8px', fontSize: '18px', color: '#fff' }}>¿Cancelar tu turno?</h3>
+              <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#888' }}>Perderás tu posición en la cola y tendrás que volver a pedir.</p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setShowConfirmCancel(false)} style={{ flex: 1, padding: '13px', background: 'transparent', border: '1px solid #333', borderRadius: '12px', color: '#fff', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}>
+                  Volver
+                </button>
+                <button onClick={() => { setShowConfirmCancel(false); resetear(); }} style={{ flex: 1, padding: '13px', background: '#ff4d4d', border: 'none', borderRadius: '12px', color: '#fff', fontWeight: '700', cursor: 'pointer', fontSize: '14px' }}>
+                  Sí, cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

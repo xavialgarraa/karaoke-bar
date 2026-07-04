@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
-import { 
-  Mic2, Trash2, GripVertical, Tv, ExternalLink, 
-  Settings, MapPin, Power, LogOut, X, Edit2, Copy, Cast, Printer, QrCode, Loader2
+import {
+  Mic2, Trash2, GripVertical, Tv, ExternalLink,
+  Settings, MapPin, Power, LogOut, X, Edit2, Copy, Cast, Printer, QrCode, Loader2,
+  ChevronUp, ChevronDown
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -21,7 +22,8 @@ const AdminDashboard = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
   const [barData, setBarData] = useState({
     nombre: "Cargando...",
     ubicacion: "",
@@ -35,50 +37,52 @@ const AdminDashboard = () => {
 
   // --- 1. INICIALIZACIÓN ---
   useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem('karaoke_token');
-    if (!token) {
-        navigate('/'); 
-        return;
-    }
+    if (!token) { navigate('/'); return; }
 
-    // A. Conexión Socket con AUTENTICACIÓN (Vital para funciones de Admin)
-    socketRef.current = io(API_URL, {
-        auth: { token } // Enviamos el token para que el backend sepa que somos Admin
-    });
-
+    socketRef.current = io(API_URL, { auth: { token } });
     socketRef.current.emit('unirse_bar', slug);
 
-    // B. Cargar datos iniciales
+    // Reconexión automática — re-join y refrescar cola si el socket cae
+    socketRef.current.on('connect', () => {
+        socketRef.current.emit('unirse_bar', slug);
+        fetchQueue();
+    });
+
     fetchBarInfo(token);
     fetchQueue();
 
-    // --- LISTENERS DEL SOCKET ---
-
-    // 1. Cola actualizada (alguien pidió o se borró)
     socketRef.current.on('nueva_cancion_anadida', () => fetchQueue());
     socketRef.current.on('cambio_de_turno', () => fetchQueue());
-
-    // 2. Estado de la sala (Bloqueo)
     socketRef.current.on('sala_bloqueada', () => setIsSocketActive(false));
     socketRef.current.on('sala_desbloqueada', () => setIsSocketActive(true));
 
-    return () => { if(socketRef.current) socketRef.current.disconnect(); };
+    return () => { if (socketRef.current) socketRef.current.disconnect(); };
   }, [slug]);
 
   // --- 2. LLAMADAS API ---
 
+  const handleUnauthorized = () => {
+    localStorage.removeItem('karaoke_token');
+    navigate('/login');
+  };
+
   const fetchBarInfo = async (token) => {
       try {
-          // Asumiendo que existe esta ruta o una similar para sacar datos básicos
-          // Si no tienes getBarInfo, usa lo que tengas o saca info del token
           const res = await fetch(`${API_URL}/api/bar/data/${slug}`, {
               headers: { 'Authorization': `Bearer ${token}` }
           });
-          if(res.ok) {
+          if (res.status === 401) return handleUnauthorized();
+          if (res.ok) {
               const data = await res.json();
               setBarData(prev => ({ ...prev, ...data }));
-              // Sincronizar estado del switch con la BD
-              setIsSocketActive(!data.bloqueado); 
+              setIsSocketActive(!data.bloqueado);
           }
       } catch (err) {
           console.error("Error cargando info bar", err);
@@ -89,7 +93,6 @@ const AdminDashboard = () => {
       try {
           const res = await fetch(`${API_URL}/api/queue/${slug}`);
           const data = await res.json();
-          
           const formattedQueue = data.map(item => ({
               id: item.id,
               titulo: item.titulo,
@@ -97,12 +100,37 @@ const AdminDashboard = () => {
               usuario: item.usuario_nombre || item.usuario,
               avatar: item.usuario_avatar || item.cover_url
           }));
-          
           setQueue(formattedQueue);
           setIsLoading(false);
       } catch (err) {
           console.error("Error cola:", err);
       }
+  };
+
+  // Guardar orden en backend y notificar por socket
+  const saveReorder = async (newQueue) => {
+      setQueue(newQueue);
+      try {
+          const token = localStorage.getItem('karaoke_token');
+          const res = await fetch(`${API_URL}/api/queue/reorder`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ items: newQueue.map((item, idx) => ({ id: item.id, turno: idx + 1 })) })
+          });
+          if (res.status === 401) return handleUnauthorized();
+          if (res.ok) socketRef.current?.emit('admin_siguiente_cancion', { slug, idCancionActual: null });
+      } catch (err) {
+          console.error("Error reordenando:", err);
+      }
+  };
+
+  // Mover item arriba/abajo (para móvil)
+  const moveItem = (idx, direction) => {
+      const newQueue = [...queue];
+      const target = idx + direction;
+      if (target < 0 || target >= newQueue.length) return;
+      [newQueue[idx], newQueue[target]] = [newQueue[target], newQueue[idx]];
+      saveReorder(newQueue);
   };
 
   const removeSong = async (id) => {
@@ -112,20 +140,12 @@ const AdminDashboard = () => {
 
     try {
         const token = localStorage.getItem('karaoke_token');
-        await fetch(`${API_URL}/api/queue/${id}`, {
+        const res = await fetch(`${API_URL}/api/queue/${id}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${token}` }
         });
-        
-        // Si borramos la primera, avisamos a la TV para que pase a la siguiente o a relleno
-        if (prevQueue.length > 0 && prevQueue[0].id === id) {
-            socketRef.current.emit('admin_siguiente_cancion', { slug, idCancionActual: null });
-        } else {
-            // Si borramos una del medio, solo refrescamos la lista visual de todos
-            // (Podríamos emitir un evento socket personalizado, pero cambio_de_turno sirve)
-            socketRef.current.emit('admin_siguiente_cancion', { slug, idCancionActual: null });
-        }
-
+        if (res.status === 401) return handleUnauthorized();
+        socketRef.current?.emit('admin_siguiente_cancion', { slug, idCancionActual: null });
     } catch (err) {
         alert("Error al borrar");
         setQueue(prevQueue);
@@ -270,7 +290,7 @@ const AdminDashboard = () => {
           <div style={styles.sectionHeader}>
             <div>
                 <h2 style={styles.sectionTitle}>Cola de reproducción ({queue.length})</h2>
-                <span style={styles.hint}>Reordenar por arrastrar — próximamente</span>
+                <span style={styles.hint}>{isMobile ? 'Usa ↑↓ para reordenar' : 'Arrastra para reordenar'}</span>
             </div>
             {!isSocketActive && <span style={styles.offlineBadge}>SISTEMA CERRADO</span>}
           </div>
@@ -284,14 +304,20 @@ const AdminDashboard = () => {
                     <p style={{fontSize:'12px', color:'#666'}}>El sistema está listo para recibir solicitudes.</p>
                 </div>
             ) : (
-                // NOTA: Reorder solo es visual si no conectamos el endpoint 'reorderQueue'
-                <Reorder.Group axis="y" values={queue} onReorder={setQueue} style={{ listStyle: 'none', padding: 0 }}>
+                <Reorder.Group axis="y" values={queue} onReorder={saveReorder} style={{ listStyle: 'none', padding: 0 }}>
                 <AnimatePresence>
-                    {queue.map((item) => (
+                    {queue.map((item, idx) => (
                     <Reorder.Item key={item.id} value={item} style={styles.itemWrapper} whileDrag={{ scale: 1.02, boxShadow: "0 5px 15px rgba(0,0,0,0.5)" }}>
                         <div style={styles.songCard}>
-                        <div style={styles.dragHandle}><GripVertical size={20} color="#666" /></div>
-                        
+                        {isMobile ? (
+                            <div style={styles.mobileOrderBtns}>
+                                <button onClick={() => moveItem(idx, -1)} style={styles.orderBtn} disabled={idx === 0}><ChevronUp size={16} /></button>
+                                <button onClick={() => moveItem(idx, 1)} style={styles.orderBtn} disabled={idx === queue.length - 1}><ChevronDown size={16} /></button>
+                            </div>
+                        ) : (
+                            <div style={styles.dragHandle}><GripVertical size={20} color="#666" /></div>
+                        )}
+
                         <div style={styles.songInfo}>
                             <div style={styles.songTitle}>{item.titulo}</div>
                             <div style={styles.songArtist}>{item.artista}</div>
@@ -481,7 +507,9 @@ const styles = {
   input: { width: '100%', padding: '12px', background: '#050505', border: '1px solid #333', borderRadius: '8px', color: 'white', outline: 'none', boxSizing: 'border-box' },
   modalFooter: { display: 'flex', gap: '10px', marginTop: '20px' },
   saveBtn: { flex: 1, background: '#00f2ff', color: '#000', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
-  cancelBtn: { flex: 1, background: 'transparent', color: '#fff', border: '1px solid #333', padding: '12px', borderRadius: '10px', cursor: 'pointer' }
+  cancelBtn: { flex: 1, background: 'transparent', color: '#fff', border: '1px solid #333', padding: '12px', borderRadius: '10px', cursor: 'pointer' },
+  mobileOrderBtns: { display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 },
+  orderBtn: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', borderRadius: '6px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, transition: 'background 0.15s' }
 };
 
 export default AdminDashboard;

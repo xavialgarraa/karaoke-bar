@@ -25,6 +25,9 @@ const io = new Server(server, {
 });
 
 
+// Rate limit: socketId -> timestamp of last pedir_cancion
+const requestCooldown = new Map();
+
 io.on("connection", async (socket) => {
     console.log(`🔌 Socket conectado: ${socket.id}`);
 
@@ -147,6 +150,17 @@ io.on("connection", async (socket) => {
     socket.on("pedir_cancion", async (data) => {
         const { slug, usuario, cancion } = data;
 
+        // Rate limiting: 1 request per 30 seconds per socket
+        if (!socket.isAdmin) {
+            const lastRequest = requestCooldown.get(socket.id);
+            const now = Date.now();
+            if (lastRequest && now - lastRequest < 30000) {
+                const remaining = Math.ceil((30000 - (now - lastRequest)) / 1000);
+                return socket.emit('error_peticion', `Espera ${remaining}s antes de pedir otra canción.`);
+            }
+            requestCooldown.set(socket.id, now);
+        }
+
         try {
             // 🔐 Si es admin, forzamos su bar
             const barSlug = socket.isAdmin ? socket.barSlug : slug;
@@ -163,6 +177,18 @@ io.on("connection", async (socket) => {
             }
 
             const barId = barRows[0].id;
+
+            // Song limit: max 2 songs per user in queue
+            if (!socket.isAdmin) {
+                const [existingRows] = await pool.query(
+                    "SELECT COUNT(*) as count FROM peticiones WHERE bar_id = ? AND estado = 'espera' AND usuario_nombre = ?",
+                    [barId, usuario?.nombre || 'Jefe']
+                );
+                if (existingRows[0].count >= 2) {
+                    return socket.emit('error_peticion', 'Ya tienes 2 canciones en cola. Espera a que suenen antes de pedir más.');
+                }
+            }
+
             const videoId = cancion.videoId || cancion.id;
 
             console.log(`🎵 "${cancion.titulo}" pedida en ${barSlug}`);
@@ -234,7 +260,7 @@ io.on("connection", async (socket) => {
        5️⃣ DESCONEXIÓN
     ====================================================== */
     socket.on("disconnect", () => {
-        // console.log(`❌ Socket desconectado ${socket.id}`);
+        requestCooldown.delete(socket.id);
     });
 });
 
