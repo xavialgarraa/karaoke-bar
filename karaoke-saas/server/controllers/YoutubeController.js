@@ -81,17 +81,25 @@ const searchVideos = async (req, res) => {
         // ============================================================
         // PASO 3: FILTRO DE CALIDAD ANTES DE GUARDAR
         // ============================================================
-        const videosSoloKaraokeMedia = videosAPI.filter(video => {
+        const CANALES_KARAOKE = [
+            'karaokemedia', 'karaoke version', 'karaoke hits', 'sing king',
+            'stingray', 'karaoke bar', 'instrumental karaoke', 'karaoke latino',
+            'zoom karaoke', 'sunfly', 'karaoke', 'karaoké'
+        ];
+
+        const videosFiltrados = videosAPI.filter(video => {
             const canal = video.canal.toLowerCase();
-            // Puedes añadir más canales aquí con ||
-            return canal.includes('karaokemedia'); 
+            const titulo = video.titulo.toLowerCase();
+            return CANALES_KARAOKE.some(k => canal.includes(k)) || titulo.includes('karaoke');
         });
 
-        if (videosSoloKaraokeMedia.length > 0) {
-            guardarResultadosEnBD(videosSoloKaraokeMedia.slice(0, 3));
+        const resultado = videosFiltrados.length > 0 ? videosFiltrados : videosAPI;
+
+        if (resultado.length > 0) {
+            guardarResultadosEnBD(resultado.slice(0, 3));
         }
 
-        res.json(videosSoloKaraokeMedia);
+        res.json(resultado);
         
 
     } catch (error) {
