@@ -101,17 +101,32 @@ const RELLENO_PLAYLIST = [
   }
 ];
 
+// Parse LRC → [{time: seconds, text: string}]
+function parseLRC(lrc) {
+  return lrc.split('\n').map(line => {
+    const m = line.match(/\[(\d{2}):(\d{2}(?:\.\d+)?)\](.*)/);
+    if (!m) return null;
+    return { time: parseInt(m[1]) * 60 + parseFloat(m[2]), text: m[3].trim() };
+  }).filter(Boolean);
+}
+
 const KaraokeTV = () => {
   const { slug } = useParams();
   const [searchParams] = useSearchParams();
   const socketRef = useRef(null);
   const playerRef = useRef(null);
+  const audioRef = useRef(null);
   const [isLayoutFullscreen, setIsLayoutFullscreen] = useState(false);
 
   // --- ESTADOS ---
   const [hasStarted, setHasStarted] = useState(false);
   const [queue, setQueue] = useState([]);
   const [nowPlaying, setNowPlaying] = useState(null);
+
+  // Pipeline
+  const [pipelineStatus, setPipelineStatus] = useState('not_found');
+  const [lyrics, setLyrics] = useState([]);
+  const [currentLyricIdx, setCurrentLyricIdx] = useState(-1);
 
   // ESTADO DE RELLENO + REFERENCIA
   const [isFiller, setIsFiller] = useState(true);
@@ -295,6 +310,68 @@ const KaraokeTV = () => {
       return () => { clearInterval(t); clearInterval(c); };
   }, []);
 
+  // --- PIPELINE: poll status when song changes ---
+  useEffect(() => {
+    const videoId = nowPlaying?.video_id || nowPlaying?.videoId;
+    if (!videoId || isFiller) {
+      setPipelineStatus('not_found');
+      setLyrics([]);
+      setCurrentLyricIdx(-1);
+      return;
+    }
+
+    setPipelineStatus('not_found');
+    setLyrics([]);
+    setCurrentLyricIdx(-1);
+
+    let alive = true;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/pipeline/status/${videoId}`);
+        const { status } = await res.json();
+        if (!alive) return;
+        setPipelineStatus(status);
+        if (status === 'ready') {
+          const lr = await fetch(`${API_URL}/api/pipeline/lyrics/${videoId}`);
+          if (lr.ok) setLyrics(parseLRC(await lr.text()));
+          clearInterval(poll);
+        }
+      } catch {}
+    };
+
+    check();
+    const poll = setInterval(check, 3000);
+    return () => { alive = false; clearInterval(poll); };
+  }, [nowPlaying?.video_id, nowPlaying?.videoId, isFiller]);
+
+  // --- PIPELINE: control audio playback ---
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || pipelineStatus !== 'ready' || isFiller) return;
+    if (isPreparing) {
+      audio.pause();
+      audio.currentTime = 0;
+    } else {
+      audio.play().catch(console.error);
+    }
+  }, [pipelineStatus, isPreparing, isFiller]);
+
+  // --- PIPELINE: sync lyrics to audio time ---
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !lyrics.length) return;
+    const onTime = () => {
+      const t = audio.currentTime;
+      let idx = -1;
+      for (let i = 0; i < lyrics.length; i++) {
+        if (lyrics[i].time <= t) idx = i; else break;
+      }
+      setCurrentLyricIdx(idx);
+    };
+    audio.addEventListener('timeupdate', onTime);
+    return () => audio.removeEventListener('timeupdate', onTime);
+  }, [lyrics]);
+
   // --- RENDER ---
   if (!hasStarted) {
       return (
@@ -442,8 +519,45 @@ const KaraokeTV = () => {
               )}
             </AnimatePresence>
 
-            {/* YOUTUBE PLAYER */}
-            <div style={styles.youtubeWrapper}>
+            {/* PIPELINE: audio + lyrics */}
+            {pipelineStatus === 'ready' && !isFiller && (
+              <>
+                <audio
+                  ref={audioRef}
+                  src={`${API_URL}/api/pipeline/audio/${nowPlaying.video_id || nowPlaying.videoId}`}
+                  onEnded={handleVideoEnd}
+                />
+                <div style={styles.lyricsDisplay}>
+                  {lyrics.length > 0 ? (
+                    <>
+                      <p style={styles.lyricPrev}>
+                        {currentLyricIdx > 0 ? lyrics[currentLyricIdx - 1].text : ''}
+                      </p>
+                      <p style={{ ...styles.lyricCurrent, textShadow: `0 0 40px ${glowColor}cc, 0 0 80px ${glowColor}66` }}>
+                        {currentLyricIdx >= 0 ? lyrics[currentLyricIdx].text : '♪'}
+                      </p>
+                      <p style={styles.lyricNext}>
+                        {currentLyricIdx < lyrics.length - 1 ? lyrics[currentLyricIdx + 1].text : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ ...styles.lyricCurrent, textShadow: `0 0 40px ${glowColor}cc` }}>
+                      ♪ {nowPlaying.titulo} ♪
+                    </p>
+                  )}
+                  {pipelineStatus === 'processing' && (
+                    <p style={styles.processingBadge}>⏳ Preparando audio…</p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* YOUTUBE PLAYER (filler + fallback while pipeline processes) */}
+            <div style={{
+              ...styles.youtubeWrapper,
+              opacity: pipelineStatus === 'ready' && !isFiller ? 0 : 1,
+              pointerEvents: pipelineStatus === 'ready' && !isFiller ? 'none' : 'auto',
+            }}>
               <YouTube
                 videoId={nowPlaying.video_id || nowPlaying.videoId}
                 opts={{
@@ -451,7 +565,7 @@ const KaraokeTV = () => {
                   playerVars: { autoplay: isFiller ? 1 : 0, controls: 0, modestbranding: 1, rel: 0 }
                 }}
                 onReady={onPlayerReady}
-                onEnd={handleVideoEnd}
+                onEnd={pipelineStatus === 'ready' && !isFiller ? undefined : handleVideoEnd}
                 onError={() => setTimeout(handleVideoEnd, 3000)}
                 style={{ width: '100%', height: '100%' }}
               />
@@ -862,6 +976,41 @@ const styles = {
   qrSubLabel: {
     fontSize: '10px', color: '#445', margin: 0, letterSpacing: '0.5px',
     fontFamily: 'monospace', color: '#555',
+  },
+
+  // --- LYRICS / PIPELINE ---
+  lyricsDisplay: {
+    position: 'absolute', inset: 0, zIndex: 3,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    padding: '40px 60px',
+    background: 'linear-gradient(160deg, #050510 0%, #0a0020 100%)',
+    gap: '20px',
+  },
+  lyricPrev: {
+    fontSize: 'clamp(16px, 2vw, 26px)', color: 'rgba(255,255,255,0.28)',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+    textAlign: 'center', margin: 0, lineHeight: 1.3,
+    maxWidth: '85%', minHeight: '1.3em',
+    transition: 'opacity 0.3s ease',
+  },
+  lyricCurrent: {
+    fontSize: 'clamp(28px, 5vw, 72px)', color: '#fff',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+    textAlign: 'center', margin: 0, lineHeight: 1.2,
+    maxWidth: '90%', minHeight: '1.2em',
+    transition: 'text-shadow 0.4s ease',
+  },
+  lyricNext: {
+    fontSize: 'clamp(16px, 2vw, 26px)', color: 'rgba(255,255,255,0.28)',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+    textAlign: 'center', margin: 0, lineHeight: 1.3,
+    maxWidth: '85%', minHeight: '1.3em',
+    transition: 'opacity 0.3s ease',
+  },
+  processingBadge: {
+    position: 'absolute', bottom: '80px',
+    fontSize: '12px', color: 'rgba(255,255,255,0.35)',
+    margin: 0, letterSpacing: '1px',
   },
 };
 

@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config(); 
 
 const apiRoutes = require('../routes/api');
+const pipeline = require('../services/pipeline');
 
 const app = express();
 const server = http.createServer(app);
@@ -241,7 +242,10 @@ io.on("connection", async (socket) => {
                 turno_numero: turno
             };
 
-            // D. Emitir eventos
+            // D. Procesar en background (descarga audio + letras)
+            pipeline.processSong(videoId, cancion.titulo, cancion.artista).catch(console.error);
+
+            // E. Emitir eventos
             socket.emit("turno_confirmado", {
                 turno,
                 tiempoEspera,
