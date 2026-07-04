@@ -103,7 +103,7 @@ const VistaSuperAdmin = () => {
         setClientes(data);
         setIsAuth(true);
       } else {
-        alert('Clave incorrecta ❌');
+        alert('Clave incorrecta. Acceso denegado.');
         setIsAuth(false);
         localStorage.removeItem('SA_KEY');
       }
@@ -132,7 +132,7 @@ const VistaSuperAdmin = () => {
     );
 
     if (res.ok) {
-      alert('✅ Cliente creado con éxito');
+      alert('Cliente creado correctamente.');
       setForm({
         nombreBar: '',
         slugBar: '',
@@ -153,7 +153,7 @@ const VistaSuperAdmin = () => {
   ========================= */
 
   const handleDelete = async (id, nombre) => {
-    if (!window.confirm(`¿Seguro que quieres borrar a ${nombre}?`)) return;
+    if (!window.confirm(`¿Confirmas que deseas eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
 
     const res = await fetch(
       `${import.meta.env.VITE_CLIENT_URL}/api/superadmin/tenant/${id}`,
@@ -174,7 +174,7 @@ const VistaSuperAdmin = () => {
     return (
       <div style={{ ...pageStyle, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ ...cardStyle, width: '360px', textAlign: 'center' }}>
-          <h1 style={{ fontSize: '26px', marginBottom: '10px' }}>👑 Super Admin</h1>
+          <h1 style={{ fontSize: '26px', marginBottom: '10px' }}>Super Admin</h1>
           <p style={{ color: '#9ca3af', marginBottom: '30px' }}>
             Acceso restringido
           </p>
@@ -205,7 +205,7 @@ const VistaSuperAdmin = () => {
       {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '50px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 700 }}>🚀 Control Center</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: 700 }}>Panel de Control</h1>
           <p style={{ color: '#9ca3af' }}>Gestión global de clientes SaaS</p>
         </div>
         <button
@@ -222,7 +222,7 @@ const VistaSuperAdmin = () => {
       <div style={{ display: 'grid', gridTemplateColumns: '420px 1fr', gap: '40px' }}>
         {/* NUEVO CLIENTE */}
         <div style={cardStyle}>
-          <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>➕ Nuevo Cliente</h2>
+          <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>Nuevo cliente</h2>
 
           <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <input placeholder="Nombre Bar" value={form.nombreBar} onChange={e => setForm({ ...form, nombreBar: e.target.value })} style={inputStyle} required />
@@ -240,13 +240,13 @@ const VistaSuperAdmin = () => {
             <input type="email" placeholder="Email Admin" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} required />
             <input placeholder="Password Inicial" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} required />
 
-            <button type="submit" style={primaryButton}>CREAR CLIENTE</button>
+            <button type="submit" style={primaryButton}>Crear cliente</button>
           </form>
         </div>
 
         {/* LISTA CLIENTES */}
         <div>
-          <h2 style={{ marginBottom: '20px' }}>📂 Clientes Activos ({clientes.length})</h2>
+          <h2 style={{ marginBottom: '20px' }}>Clientes activos ({clientes.length})</h2>
 
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 10px' }}>
             <thead>

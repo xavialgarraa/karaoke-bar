@@ -4,7 +4,7 @@ const router = express.Router();
 // --- IMPORTS ---
 const verifyToken = require('../middlewares/authMiddleware'); // Middleware de seguridad
 const authController = require('../controllers/authController');
-const youtubeController = require('../controllers/youtubeController');
+const youtubeController = require('../controllers/youtubeController.js');
 const catalogController = require('../controllers/catalogController');
 const adminController = require('../controllers/adminController');
 const superAdminController = require('../controllers/superAdminController');

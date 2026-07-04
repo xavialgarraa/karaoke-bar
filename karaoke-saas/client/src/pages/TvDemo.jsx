@@ -1,452 +1,584 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic2, Sparkles, QrCode, Clock, PlayCircle, SkipForward, FastForward } from 'lucide-react';
+import { Mic2, Sparkles, Clock, PlayCircle, FastForward, Music, Power, PlusCircle } from 'lucide-react';
+import { Minimize2, Maximize2 } from 'lucide-react';
 import YouTube from 'react-youtube';
+import QRCode from 'react-qr-code';
 
-// --- DATOS REALES DE YOUTUBE (KARAOKE) ---
 const COLA_DEMO = [
-  { id: 101, videoId: "xyF04rAhHaQ", titulo: "Bohemian Rhapsody", artista: "Queen", usuario: "Carlos M.", imagen: "https://img.youtube.com/vi/fJ9rUzIMcZQ/hqdefault.jpg" },
-  { id: 102, videoId: "Sykj3KRNV7U", titulo: "Shape of You", artista: "Ed Sheeran", usuario: "Ana G.", imagen: "https://img.youtube.com/vi/JGwWNGJdvx8/hqdefault.jpg" },
-  { id: 103, videoId: "BIQrxjV7aEA", titulo: "Summertime Sadness", artista: "Lana Del Rey", usuario: "Pedro R.", imagen: "https://img.youtube.com/vi/TdrL3QxjyVw/hqdefault.jpg" },
-  { id: 104, videoId: "doWWkG2gPPE", titulo: "Hello", artista: "Adele", usuario: "Maria L.", imagen: "https://img.youtube.com/vi/YQHsXMglC9A/hqdefault.jpg" },
+  { id: 101, videoId: "xyF04rAhHaQ", titulo: "Bohemian Rhapsody", artista: "Queen", usuario_nombre: "Carlos M." },
+  { id: 102, videoId: "Sykj3KRNV7U", titulo: "Shape of You", artista: "Ed Sheeran", usuario_nombre: "Ana G." },
+  { id: 103, videoId: "BIQrxjV7aEA", titulo: "Summertime Sadness", artista: "Lana Del Rey", usuario_nombre: "Pedro R." },
+  { id: 104, videoId: "doWWkG2gPPE", titulo: "Hello", artista: "Adele", usuario_nombre: "Maria L." },
 ];
 
 const CANCION_ACTUAL = {
   id: 999,
-  videoId: "nwzRwv47U38", 
+  videoId: "nwzRwv47U38",
   titulo: "Flowers",
   artista: "Miley Cyrus",
-  usuario: "Laura V.",
-  imagen: "https://img.youtube.com/vi/G7KNmW9a75Y/hqdefault.jpg"
+  usuario_nombre: "Laura V.",
 };
 
-const MENSAJES_TICKER = [
-  "🍸 ¡2x1 en Mojitos hasta las 11!",
-  "🎤 Pide tu turno escaneando el QR",
-  "⭐ ¡Sube al escenario y brilla!",
-  "📸 Etiquétanos en Instagram: @TuBarKaraoke"
-];
-
-
-
-const KaraokeTV = () => {
-  // Estados Principales
-  const [queue, setQueue] = useState(COLA_DEMO);
-  const [showOverlay, setShowOverlay] = useState(true);
-  const [nowPlaying, setNowPlaying] = useState(CANCION_ACTUAL);
-  const [glowColor, setGlowColor] = useState('#ff00ff');
-  const hideTimerRef = useRef(null);
-  
-  // Estados de Control
-  const [hora, setHora] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-  const [isPreparing, setIsPreparing] = useState(true);
-  const [countdown, setCountdown] = useState(60); 
-  const [isFullscreen, setIsFullscreen] = useState(false); 
-  
+const KaraokeTVDemo = () => {
   const playerRef = useRef(null);
+  const hideTimerRef = useRef(null);
+  const [isLayoutFullscreen, setIsLayoutFullscreen] = useState(false);
+  const [queue, setQueue] = useState(COLA_DEMO);
+  const [nowPlaying, setNowPlaying] = useState(CANCION_ACTUAL);
+  const [isPreparing, setIsPreparing] = useState(true);
+  const [countdown, setCountdown] = useState(15);
+  const [showInfo, setShowInfo] = useState(true);
+  const [hora, setHora] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const [glowColor, setGlowColor] = useState('#00f2ff');
 
-  // --- 1. LÓGICA DE CONTROL (NEXT) ---
-  const skipSong = () => {
-    // Forzamos el fin del video actual para pasar al siguiente
-    handleVideoEnd();
-  };
-
-  const revealOverlay = () => {
-    setShowOverlay(true);
-
-    // Reiniciar temporizador
-    if (hideTimerRef.current) {
-      clearTimeout(hideTimerRef.current);
-    }
-
-    hideTimerRef.current = setTimeout(() => {
-      setShowOverlay(false);
-    }, 10000); 
-  };
-
-  // --- 2. ATAJOS DE TECLADO (DJ CONTROLS) ---
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
       const key = e.key.toLowerCase();
-      // 'F': Fullscreen
-      if (key === 'f') setIsFullscreen(prev => !prev);
-      // '+': Añadir 30s
+      if (key === 'f') setIsLayoutFullscreen(prev => !prev);
       if (key === '+' || key === 't') setCountdown(prev => prev + 30);
-      // 'S': Skip Countdown (Saltar espera)
       if (key === 's') setCountdown(0);
-      // 'N': Next (Siguiente canción)
-      if (key === 'n') skipSong();
+      if (key === 'n') handleVideoEnd();
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  
+
+  // Info bar auto-hide
+  const resetInfoTimer = () => {
+    setShowInfo(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setShowInfo(false), 10000);
+  };
 
   useEffect(() => {
-    revealOverlay();
-
-    return () => {
-      if (hideTimerRef.current) {
-        clearTimeout(hideTimerRef.current);
-      }
-    };
+    resetInfoTimer();
+    return () => clearTimeout(hideTimerRef.current);
   }, [nowPlaying]);
 
-
-  // --- 3. RELOJ ---
+  // Clock
   useEffect(() => {
-    const timer = setInterval(() => {
-      setHora(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 1000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setHora(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })), 1000);
+    const colors = ['#00f2ff', '#bd00ff', '#ff0055'];
+    let i = 0;
+    const c = setInterval(() => { setGlowColor(colors[i]); i = (i + 1) % 3; }, 3000);
+    return () => { clearInterval(t); clearInterval(c); };
   }, []);
 
-  // --- 4. CUENTA ATRÁS ---
+  // Countdown
   useEffect(() => {
     let interval = null;
     if (isPreparing && countdown > 0) {
-      interval = setInterval(() => {
-        setCountdown((prev) => prev - 1);
-      }, 1000);
-    } else if (countdown === 0) {
+      interval = setInterval(() => setCountdown(c => c - 1), 1000);
+    } else if (countdown === 0 && isPreparing) {
       setIsPreparing(false);
-      if (playerRef.current && typeof playerRef.current.playVideo === 'function') {
+      resetInfoTimer();
+      if (playerRef.current) {
+        playerRef.current.seekTo(0);
         playerRef.current.playVideo();
       }
     }
     return () => clearInterval(interval);
   }, [isPreparing, countdown]);
 
-  // --- 5. GESTIÓN DE COLA (AL TERMINAR VIDEO O SALTAR) ---
   const handleVideoEnd = () => {
     if (queue.length > 0) {
-      const siguiente = queue[0];
-      const nuevaCola = queue.slice(1);
-      
-      const relleno = { 
-        id: Date.now(), 
-        videoId: "k-q72zD78cM", 
-        titulo: "Sweet Caroline", 
-        artista: "Neil Diamond", 
-        usuario: "Cliente Nuevo", 
-        imagen: "https://img.youtube.com/vi/k-q72zD78cM/hqdefault.jpg"
-      };
-
-      setNowPlaying(siguiente);
-      setQueue([...nuevaCola, relleno]);
-      
-      setCountdown(60);
+      const next = queue[0];
+      const remaining = queue.slice(1);
+      setNowPlaying(next);
+      setQueue([...remaining, { ...CANCION_ACTUAL, id: Date.now() }]);
       setIsPreparing(true);
-      setIsFullscreen(false); 
+      setCountdown(15);
+      setIsLayoutFullscreen(false);
     } else {
-      setCountdown(60);
+      setCountdown(15);
       setIsPreparing(true);
     }
   };
 
-  const youtubeOpts = {
-    height: '100%',
-    width: '100%',
-    playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0 },
-  };
-
-  const onReady = (event) => {
+  const onPlayerReady = (event) => {
     playerRef.current = event.target;
+    if (isPreparing) {
+      event.target.mute();
+      event.target.pauseVideo();
+      event.target.seekTo(0);
+    } else {
+      event.target.playVideo();
+    }
   };
 
-  // Ciclo Neon
-  useEffect(() => {
-    const colors = ['#ff00ff', '#00ffff', '#ff0080', '#8000ff', '#00ff80'];
-    let index = 0;
-    const interval = setInterval(() => {
-      index = (index + 1) % colors.length;
-      setGlowColor(colors[index]);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  const videoBorderStyle = {
+    ...styles.videoContainer,
+    borderColor: glowColor,
+    boxShadow: `0 0 0 2px ${glowColor}33, 0 0 60px ${glowColor}55, 0 0 120px ${glowColor}22`,
+    transition: 'border-color 1.2s ease, box-shadow 1.2s ease',
+  };
 
   return (
     <div style={styles.container}>
-      
-      {/* FONDO ANIMADO */}
+      {/* Background */}
       <div style={styles.background}>
         <div style={styles.blob1}></div>
         <div style={styles.blob2}></div>
       </div>
 
-      {/* RELOJ + INDICADORES */}
-      <div style={styles.clockContainer}>
-        <Clock size={28} color="#fff" style={{ marginRight: '10px' }} />
-        <span>{hora}</span>
-        {isFullscreen && <span style={{ marginLeft: '15px', color: '#00f2ff', fontSize: '14px' }}>[MODO CINE]</span>}
+      {/* Top bar */}
+      <div style={styles.topBar}>
+        <div style={styles.topBarLeft}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 900, fontSize: '20px', letterSpacing: '0px', fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif' }}>
+            <Mic2 size={18} color="#00f2ff" />
+            Vo<span style={{ color: '#00f2ff' }}>kara</span>
+          </div>
+          <span style={styles.badgeDemo}>DEMO</span>
+        </div>
+        <div style={styles.topBarRight}>
+          <span style={styles.shortcutsHint}>[S] saltar · [N] siguiente · [F] fullscreen</span>
+          <div onClick={() => setIsLayoutFullscreen(!isLayoutFullscreen)} style={styles.fullscreenBtn} title="Pantalla completa (F)">
+            {isLayoutFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </div>
+          <div style={styles.clock}>
+            <Clock size={16} />
+            <span>{hora}</span>
+          </div>
+        </div>
       </div>
 
-      {/* HINT DE ATAJOS */}
-      <div style={styles.shortcutsHint}>
-          <span>[S] Saltar Espera</span>
-          <span>[N] Siguiente Canción</span>
-          <span>[F] Pantalla Grande</span>
-      </div>
+      {/* Main content */}
+      <div style={styles.mainContent}>
 
-      {/* GRID PRINCIPAL */}
-      <div style={{
-        ...styles.mainGrid,
-        paddingBottom: isFullscreen ? '0px' : '80px' 
-      }}>
-        
-        {/* === IZQUIERDA: VIDEO PLAYER === */}
-        <div style={{
-          ...styles.leftColumn,
-          flex: isFullscreen ? 1 : 3, 
-          transition: 'all 0.5s ease'
-        }}>
-          <motion.div
-            style={{ 
-              ...styles.videoContainer,
-              boxShadow: `0 0 80px ${glowColor}40`,
-              borderRadius: isFullscreen ? '0px' : '24px', 
-              border: isFullscreen ? 'none' : '1px solid rgba(255,255,255,0.1)'
-            }}
-            onMouseMove={revealOverlay}
-            onClick={revealOverlay}
-            onTouchStart={revealOverlay}
-            animate={{ boxShadow: `0 0 80px ${glowColor}40` }}
-            transition={{ duration: 1 }}
-          >
+        {/* VIDEO COLUMN */}
+        <div style={{ ...styles.leftColumn, flex: isLayoutFullscreen ? 1 : 7, transition: 'flex 0.5s ease' }}>
+          <motion.div layout style={videoBorderStyle} onClick={resetInfoTimer}>
 
-            {/* CAPA DE PREPARACIÓN */}
+            {/* PREP OVERLAY */}
             <AnimatePresence>
               {isPreparing && (
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  exit={{ opacity: 0, scale: 1.5, filter: 'blur(20px)' }}
+                  exit={{ opacity: 0, transition: { duration: 0.4 } }}
                   style={styles.prepOverlay}
                 >
-                  <motion.div 
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 1 }}
-                    style={styles.prepContent}
-                  >
-                    <h2 style={{ fontSize: '30px', color: '#00f2ff', textTransform: 'uppercase', letterSpacing: '4px' }}>
-                      Siguiente Turno
-                    </h2>
-                    <h1 style={{ fontSize: '80px', margin: '10px 0', lineHeight: 1 }}>
-                      {nowPlaying.usuario}
-                    </h1>
-                    <p style={{ fontSize: '24px', color: '#ccc', marginBottom: '30px' }}>
-                      {nowPlaying.titulo} - {nowPlaying.artista}
-                    </p>
-                    
-                    <div style={styles.countdownCircle}>
-                      <span style={{ fontSize: '100px', fontWeight: 'bold', fontFamily: 'monospace' }}>
-                        {countdown}
-                      </span>
-                      <span style={{ fontSize: '20px', textTransform: 'uppercase' }}>Segundos</span>
+                  <div style={styles.prepContent}>
+                    <motion.div
+                      initial={{ scale: 0, rotate: -10 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
+                      style={styles.prepAvatar}
+                    >
+                      <img
+                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(nowPlaying.usuario_nombre || 'U')}&background=random&size=160`}
+                        alt="avatar"
+                        style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    </motion.div>
+
+                    <p style={styles.prepLabel}>PRÓXIMO TURNO</p>
+                    <h1 style={styles.prepUser}>{nowPlaying.usuario_nombre}</h1>
+                    <p style={styles.prepSong}>{nowPlaying.titulo}</p>
+                    {nowPlaying.artista && <p style={styles.prepArtist}>{nowPlaying.artista}</p>}
+
+                    {/* Countdown ring */}
+                    <div style={{ position: 'relative', margin: '30px 0' }}>
+                      <svg width="160" height="160" style={{ transform: 'rotate(-90deg)' }}>
+                        <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
+                        <circle
+                          cx="80" cy="80" r="68"
+                          fill="none"
+                          stroke={glowColor}
+                          strokeWidth="8"
+                          strokeLinecap="round"
+                          strokeDasharray={`${2 * Math.PI * 68}`}
+                          strokeDashoffset={`${2 * Math.PI * 68 * (1 - countdown / 15)}`}
+                          style={{ transition: 'stroke-dashoffset 0.9s linear, stroke 1.2s ease', filter: `drop-shadow(0 0 10px ${glowColor})` }}
+                        />
+                      </svg>
+                      <div style={styles.countdownInner}>
+                        <span style={{ ...styles.countdownNumber, color: glowColor }}>{countdown}</span>
+                        <span style={styles.countdownSec}>seg</span>
+                      </div>
                     </div>
 
-                    <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
-                       <p style={{ fontSize: '18px', color: '#ff0080', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <PlayCircle /> ¡Acércate al escenario!
-                      </p>
-                      
-                      {/* BOTÓN SALTAR ESPERA */}
-                      <button 
-                        onClick={() => setCountdown(0)}
-                        style={styles.skipButton}
-                      >
-                        <SkipForward size={20} /> SALTAR ESPERA
+                    <div style={styles.controlsPrep}>
+                      <button onClick={() => setCountdown(c => c + 30)} style={styles.btnSecundario}>
+                        <PlusCircle size={18} /> +30s
+                      </button>
+                      <button onClick={() => setCountdown(0)} style={{ ...styles.btnPrimario, background: glowColor }}>
+                        <PlayCircle size={18} /> Comenzar
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {/* YOUTUBE */}
-            <div style={{ width: '100%', height: '100%', pointerEvents: 'none' }}>
-                <YouTube 
-                  videoId={nowPlaying.videoId} 
-                  opts={youtubeOpts} 
-                  onReady={onReady}
-                  onEnd={handleVideoEnd}
-                  style={{ width: '100%', height: '100%' }}
-                />
+            <div style={styles.youtubeWrapper}>
+              <YouTube
+                videoId={nowPlaying.videoId}
+                opts={{ height: '100%', width: '100%', playerVars: { autoplay: 0, controls: 0, modestbranding: 1, rel: 0 } }}
+                onReady={onPlayerReady}
+                onEnd={handleVideoEnd}
+                style={{ width: '100%', height: '100%' }}
+              />
             </div>
 
-            {/* OVERLAY INFO (Parte inferior) */}
-            {!isPreparing && showOverlay && (
-              <motion.div 
-                initial={{ y: 100 }}
-                animate={{ y: 0 }}
-                exit={{ y: 120, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-                style={styles.videoOverlay}
-                onMouseMove={() => setShowOverlay(true)}
+            {/* INFO BAR */}
+            {!isPreparing && (
+              <motion.div
+                initial={{ y: 60, opacity: 0 }}
+                animate={{ y: showInfo ? 0 : 80, opacity: showInfo ? 1 : 0 }}
+                transition={{ duration: 0.5 }}
+                style={styles.infoBar}
+                onClick={resetInfoTimer}
               >
-                <div style={styles.nowPlayingInfo}>
-                  <div style={styles.coverArt}>
-                      <img src={nowPlaying.imagen} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ ...styles.infoAccent, background: glowColor, boxShadow: `0 0 20px ${glowColor}` }} />
+                <div style={styles.infoText}>
+                  <span style={{ ...styles.nowPlayingBadge, color: glowColor }}>● REPRODUCIENDO AHORA</span>
+                  <h2 style={styles.songTitle}>{nowPlaying.titulo}</h2>
+                  <div style={styles.artistRow}>
+                    <span style={styles.artistName}>{nowPlaying.artista || ''}</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={styles.songTitleBig}>{nowPlaying.titulo}</h3>
-                    <div style={styles.artistInfo}>
-                      <span style={{ color: '#aaa' }}>{nowPlaying.artista}</span>
-                      <span style={{ margin: '0 15px', opacity: 0.3 }}>|</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <Mic2 size={24} color="#00f2ff" />
-                          <span>Cantando: <b style={{ color: '#00f2ff' }}>{nowPlaying.usuario}</b></span>
-                      </div>
-                    </div>
+                  <div style={styles.singerRow}>
+                    <Mic2 size={18} color="#00f2ff" />
+                    <span style={styles.singerName}>{nowPlaying.usuario_nombre}</span>
                   </div>
                 </div>
-
-                {/* --- BOTONES DE CONTROL (SOLO SALTAR) --- */}
-                <div style={styles.controlsBar}>
-                    <button onClick={skipSong} style={styles.controlBtn} title="Siguiente Canción">
-                        <FastForward size={24} fill="white"/>
-                    </button>
-                </div>
-
+                <button onClick={(e) => { e.stopPropagation(); handleVideoEnd(); }} style={styles.skipBtn}>
+                  <FastForward size={22} />
+                </button>
               </motion.div>
             )}
           </motion.div>
         </div>
 
-        {/* === DERECHA: SIDEBAR === */}
-        <div style={{
-           ...styles.rightColumnWrapper,
-           width: isFullscreen ? '0px' : '25%',
-           opacity: isFullscreen ? 0 : 1,
-           minWidth: isFullscreen ? '0px' : '320px',
-           margin: isFullscreen ? '0' : '0 0 0 25px'
-        }}>
-          <div style={styles.rightColumnContent}>
-            
-            {/* CARD 1 */}
-            <div style={styles.card}>
-              <div style={styles.cardHeader}>
-                <Sparkles size={14} color="#ffd700" /> 
-                <span style={{ color: '#ffd700', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '12px', letterSpacing: '1px' }}>
-                  {isPreparing ? "Preparando..." : "En el escenario"}
-                </span>
-              </div>
-              <p style={{ fontSize: '22px', fontWeight: 'bold', lineHeight: '1.2', marginBottom: '5px' }}>
+        {/* SIDEBAR */}
+        <AnimatePresence>
+          {!isLayoutFullscreen && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.4 }}
+              style={styles.rightColumn}
+            >
+              {/* NOW PLAYING CARD */}
+              <div style={styles.glassCard}>
+                <div style={styles.cardHeader}>
+                  <Sparkles size={16} color="#ffd700" />
+                  <span>{isPreparing ? 'PREPARANDO' : 'EN ESCENA'}</span>
+                </div>
+                <p style={{ fontSize: '18px', fontWeight: '700', lineHeight: 1.2, marginBottom: '6px', color: '#fff' }}>
                   {nowPlaying.titulo}
-              </p>
-              <p style={{ color: '#00f2ff', fontWeight: '500', fontSize: '18px' }}>
-                 🎤 {nowPlaying.usuario}
-              </p>
-            </div>
-
-            {/* CARD 2: COLA */}
-            <div style={{ ...styles.card, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ width: '6px', height: '24px', backgroundColor: '#bd00ff', borderRadius: '4px' }}></span>
-                Siguientes
-              </h2>
-              
-              <div style={styles.queueList}>
-                <AnimatePresence mode="popLayout">
-                  {queue.slice(0, 3).map((item, index) => (
-                    <motion.div
-                      key={item.id}
-                      layout
-                      initial={{ opacity: 0, x: 50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -50 }}
-                      style={styles.queueItem}
-                    >
-                      <div style={styles.rankNumber}>
-                        {index + 1}
-                      </div>
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <p style={{ fontWeight: 'bold', fontSize: '16px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.titulo}
-                        </p>
-                        <p style={{ fontSize: '12px', color: '#bd00ff' }}>
-                          👤 {item.usuario}
-                        </p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* CARD 3: QR */}
-            <div style={styles.qrCard}>
-              <div style={{ background: 'white', padding: '8px', borderRadius: '10px', width: 'fit-content', margin: '0 auto 10px auto' }}>
-                  <QrCode size={80} color="black" />
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <h3 style={{ fontWeight: 'bold', fontSize: '16px' }}>¡Pide tu canción!</h3>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '2px', marginTop: '2px' }}>
-                  Escanea ahora
                 </p>
+                <p style={{ fontSize: '13px', color: '#888', marginBottom: '8px' }}>{nowPlaying.artista}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#00f2ff', fontWeight: '700', fontSize: '14px' }}>
+                  <Mic2 size={14} color="#00f2ff" /> {nowPlaying.usuario_nombre}
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* FOOTER: MARQUESINA */}
-      {!isFullscreen && (
-        <div style={styles.tickerContainer}>
-          <motion.div
-            style={{ display: 'flex', whiteSpace: 'nowrap' }}
-            animate={{ x: [0, -1000] }}
-            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-          >
-            {[...MENSAJES_TICKER, ...MENSAJES_TICKER, ...MENSAJES_TICKER].map((msg, idx) => (
-              <span key={idx} style={styles.tickerItem}>
-                <span style={{ color: '#00f2ff', fontSize: '24px', marginRight: '10px' }}>★</span> 
-                {msg}
-              </span>
-            ))}
-          </motion.div>
-        </div>
-      )}
+              {/* QUEUE CARD */}
+              <div style={{ ...styles.glassCard, flex: 1, overflow: 'hidden' }}>
+                <div style={styles.cardHeader}>
+                  <Music size={14} color="#bd00ff" />
+                  <span>EN COLA</span>
+                </div>
+                <div style={styles.queueContainer}>
+                  {queue.length === 0 ? (
+                    <div style={styles.emptyQueue}>
+                      <Music size={36} opacity={0.3} />
+                      <p style={{ marginTop: '10px', fontSize: '13px', opacity: 0.5 }}>Lista vacía</p>
+                    </div>
+                  ) : (
+                    <AnimatePresence>
+                      {queue.slice(0, 5).map((item, idx) => (
+                        <motion.div
+                          key={item.id || idx}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ delay: idx * 0.04 }}
+                          style={{ ...styles.queueItem, ...(idx === 0 ? styles.queueItemNext : {}) }}
+                        >
+                          <div style={{
+                            ...styles.rank,
+                            background: idx === 0 ? '#ffd700' : 'rgba(255,255,255,0.08)',
+                            color: idx === 0 ? '#000' : '#777',
+                            border: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                            boxShadow: idx === 0 ? '0 0 16px rgba(255,215,0,0.55)' : 'none',
+                            fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+                            fontSize: '15px',
+                          }}>
+                            {idx + 1}
+                          </div>
+                          <div style={{ overflow: 'hidden', flex: 1 }}>
+                            {idx === 0 && <div style={styles.nextUpLabel}>SIGUIENTE</div>}
+                            <div style={styles.qTitle}>{item.titulo}</div>
+                            <div style={styles.qArtist}>{item.artista || ''}</div>
+                            <div style={styles.qUser}>
+                              <Mic2 size={11} color="#00f2ff" style={{ flexShrink: 0 }} />
+                              <span>{item.usuario_nombre}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  )}
+                </div>
+              </div>
+
+              {/* QR CARD */}
+              <div style={styles.qrCard}>
+                <p style={styles.qrLabel}>Escanea y pide tu canción</p>
+                <div style={styles.qrInner}>
+                  <QRCode value="https://vokara.app/bar/demo" size={120} bgColor="#ffffff" fgColor="#0a0a0a" />
+                </div>
+                <p style={styles.qrSubLabel}>vokara.app/bar/demo</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+      </div>
     </div>
   );
 };
 
-// --- ESTILOS INLINE ---
+// --- STYLES ---
 const styles = {
-  container: { width: '100vw', height: '100vh', backgroundColor: '#000', color: '#fff', fontFamily: 'sans-serif', overflow: 'hidden', position: 'relative' },
-  background: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #1a0b2e 0%, #000000 50%, #0d2b2e 100%)', zIndex: 0 },
-  blob1: { position: 'absolute', top: '10%', left: '20%', width: '400px', height: '400px', background: 'rgba(189, 0, 255, 0.3)', borderRadius: '50%', filter: 'blur(100px)' },
-  blob2: { position: 'absolute', bottom: '10%', right: '20%', width: '400px', height: '400px', background: 'rgba(0, 242, 255, 0.3)', borderRadius: '50%', filter: 'blur(100px)' },
-  clockContainer: { position: 'absolute', top: '30px', right: '30px', zIndex: 50, backgroundColor: 'rgba(0,0,0,0.6)', padding: '10px 20px', borderRadius: '30px', border: '1px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', fontSize: '24px', fontWeight: 'bold', backdropFilter: 'blur(10px)' },
-  shortcutsHint: { position: 'absolute', top: '30px', left: '30px', zIndex: 50, color: 'rgba(255,255,255,0.3)', fontSize: '12px', display: 'flex', gap: '15px', fontWeight: 'bold', textTransform: 'uppercase' },
-  mainGrid: { position: 'relative', zIndex: 10, display: 'flex', height: '100%', padding: '25px', boxSizing: 'border-box', transition: 'all 0.5s ease' },
-  leftColumn: { display: 'flex', flexDirection: 'column', height: '100%' },
-  rightColumnWrapper: { display: 'flex', flexDirection: 'column', transition: 'all 0.5s ease', overflow: 'hidden' },
-  rightColumnContent: { display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', width: '100%' },
-  videoContainer: { flex: 1, backgroundColor: '#000', overflow: 'hidden', position: 'relative', transition: 'all 0.5s ease' },
-  prepOverlay: { position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.95)', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' },
-  prepContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' },
-  countdownCircle: { width: '250px', height: '250px', borderRadius: '50%', border: '10px solid #00f2ff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 50px rgba(0, 242, 255, 0.5)', background: 'radial-gradient(circle, rgba(0,242,255,0.1) 0%, transparent 70%)' },
-  
-  // ESTILOS NUEVOS PARA LOS BOTONES
-  skipButton: { background: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', padding: '10px 20px', borderRadius: '30px', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.3s' },
-  controlsBar: { position: 'absolute', bottom: '30px', right: '30px', display: 'flex', gap: '10px' },
-  controlBtn: { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '50%', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', backdropFilter: 'blur(5px)' },
-  
-  videoOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '30px', background: 'linear-gradient(to top, #000 0%, rgba(0,0,0,0.9) 60%, transparent 100%)', zIndex: 30 },
-  nowPlayingInfo: { display: 'flex', alignItems: 'center', gap: '25px' },
-  coverArt: { width: '100px', height: '100px', borderRadius: '15px', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' },
-  songTitleBig: { fontSize: '48px', fontWeight: '800', margin: 0, marginBottom: '10px', lineHeight: 1, textShadow: '0 2px 10px rgba(0,0,0,0.5)' },
-  artistInfo: { display: 'flex', alignItems: 'center', fontSize: '24px' },
-  card: { backgroundColor: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '20px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', flexShrink: 0 },
-  cardHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' },
-  queueList: { flex: 1, overflowY: 'hidden', display: 'flex', flexDirection: 'column', gap: '10px' },
-  queueItem: { backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: '15px' },
-  rankNumber: { width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #00c6ff 0%, #0072ff 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', boxShadow: '0 4px 10px rgba(0, 114, 255, 0.3)' },
-  qrCard: { background: 'linear-gradient(135deg, #bd00ff 0%, #ff0055 100%)', borderRadius: '24px', padding: '15px', boxShadow: '0 10px 40px rgba(189, 0, 255, 0.3)', flexShrink: 0 },
-  tickerContainer: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '60px', background: 'linear-gradient(90deg, #240b36 0%, #c31432 100%)', display: 'flex', alignItems: 'center', overflow: 'hidden', zIndex: 20, borderTop: '1px solid rgba(255,255,255,0.1)' },
-  tickerItem: { color: '#fff', fontSize: '20px', fontWeight: 'bold', margin: '0 40px', display: 'flex', alignItems: 'center' },
+  container: {
+    height: '100vh', width: '100vw',
+    background: '#050505', color: 'white',
+    fontFamily: '"Inter", sans-serif',
+    position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  },
+  background: {
+    position: 'absolute', inset: 0, zIndex: 0,
+    background: 'radial-gradient(ellipse at 30% 20%, #1a0b2e 0%, #000 70%)'
+  },
+  blob1: {
+    position: 'absolute', top: '-15%', left: '-10%',
+    width: '50vw', height: '50vw',
+    background: '#bd00ff', filter: 'blur(180px)', opacity: 0.18, borderRadius: '50%', pointerEvents: 'none'
+  },
+  blob2: {
+    position: 'absolute', bottom: '-15%', right: '-10%',
+    width: '50vw', height: '50vw',
+    background: '#00f2ff', filter: 'blur(180px)', opacity: 0.15, borderRadius: '50%', pointerEvents: 'none'
+  },
+
+  // --- TOP BAR ---
+  topBar: {
+    height: '44px', padding: '0 24px',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    zIndex: 50, flexShrink: 0,
+    borderBottom: '1px solid rgba(255,255,255,0.05)',
+    background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(12px)'
+  },
+  topBarLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+  topBarRight: { display: 'flex', alignItems: 'center', gap: '16px' },
+  badgeDemo: {
+    fontSize: '10px', letterSpacing: '2px', fontWeight: '700',
+    background: 'rgba(255,215,0,0.1)', padding: '3px 10px', borderRadius: '20px',
+    color: '#ffd700', border: '1px solid rgba(255,215,0,0.2)',
+  },
+  shortcutsHint: {
+    fontSize: '11px', color: 'rgba(255,255,255,0.25)', letterSpacing: '0.5px',
+  },
+  fullscreenBtn: {
+    cursor: 'pointer', color: '#555', display: 'flex', alignItems: 'center',
+    padding: '6px', borderRadius: '8px', transition: 'color 0.2s',
+  },
+  clock: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    fontSize: '16px', fontWeight: '600', color: '#888', letterSpacing: '0.5px'
+  },
+
+  // --- LAYOUT ---
+  mainContent: {
+    flex: 1, display: 'flex', padding: '16px 20px 20px',
+    position: 'relative', zIndex: 10, minHeight: 0, gap: '20px'
+  },
+  leftColumn: { display: 'flex', flexDirection: 'column', minWidth: 0 },
+
+  // --- VIDEO ---
+  videoContainer: {
+    flex: 1, background: '#000', borderRadius: '20px', overflow: 'hidden',
+    position: 'relative', border: '2px solid #00f2ff',
+    display: 'flex', flexDirection: 'column', cursor: 'pointer'
+  },
+  youtubeWrapper: { width: '100%', height: '100%', pointerEvents: 'none' },
+
+  // --- INFO BAR ---
+  infoBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    padding: '80px 40px 32px 52px',
+    background: 'linear-gradient(to top, rgba(0,0,0,0.99) 0%, rgba(0,0,0,0.88) 55%, transparent 100%)',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '20px',
+  },
+  infoAccent: {
+    position: 'absolute', left: '32px', bottom: '32px',
+    width: '4px', height: '80px', borderRadius: '4px',
+    transition: 'background 1.2s ease, box-shadow 1.2s ease',
+  },
+  nowPlayingBadge: {
+    fontSize: '10px', fontWeight: '800', letterSpacing: '3px',
+    textTransform: 'uppercase', marginBottom: '2px', transition: 'color 1.2s ease',
+  },
+  infoText: { display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0 },
+  songTitle: {
+    fontSize: '5vw', fontWeight: '900', lineHeight: 1, margin: 0,
+    color: '#fff', textShadow: '0 2px 40px rgba(0,0,0,0.9)',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    letterSpacing: '0px',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+  },
+  artistRow: { display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 },
+  artistName: {
+    fontSize: '1.6vw', color: '#bbb', fontWeight: '500',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+  },
+  singerRow: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' },
+  singerName: {
+    fontSize: '1.3vw', color: '#00f2ff', fontWeight: '700',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.5px',
+  },
+  skipBtn: {
+    background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+    color: 'white', width: '56px', height: '56px', borderRadius: '50%',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backdropFilter: 'blur(8px)', transition: '0.2s', flexShrink: 0, marginLeft: '20px'
+  },
+
+  // --- PREP OVERLAY ---
+  prepOverlay: {
+    position: 'absolute', inset: 0,
+    background: 'radial-gradient(ellipse at 50% 40%, rgba(30,0,60,0.97) 0%, rgba(0,0,0,0.98) 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    backdropFilter: 'blur(24px)', zIndex: 20, cursor: 'default'
+  },
+  prepContent: {
+    textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px'
+  },
+  prepAvatar: {
+    width: '110px', height: '110px', borderRadius: '50%',
+    border: '3px solid rgba(255,255,255,0.2)',
+    boxShadow: '0 0 40px rgba(0,242,255,0.3)',
+    marginBottom: '20px', overflow: 'hidden', background: '#111'
+  },
+  prepLabel: {
+    color: '#00f2ff', letterSpacing: '5px', fontSize: '1.2vh',
+    fontWeight: '700', margin: '0 0 8px', textTransform: 'uppercase'
+  },
+  prepUser: {
+    fontSize: '9vh', fontWeight: '900', margin: '0 0 8px', lineHeight: 1,
+    color: '#fff', textShadow: '0 0 60px rgba(255,255,255,0.3)',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif',
+    letterSpacing: '0px',
+  },
+  prepSong: {
+    fontSize: '3.2vh', color: '#eee', margin: '0 0 4px', fontWeight: '700',
+    fontFamily: '"Bigger Display", "Big Shoulders Display", sans-serif'
+  },
+  prepArtist: { fontSize: '1.8vh', color: '#777', margin: 0, fontWeight: '500' },
+  countdownInner: {
+    position: 'absolute', top: '50%', left: '50%',
+    transform: 'translate(-50%, -50%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center'
+  },
+  countdownNumber: {
+    fontSize: '13vh', fontWeight: '900', lineHeight: 1,
+    fontFamily: '"Bigger Display", "Big Shoulders Display", monospace'
+  },
+  countdownSec: { fontSize: '1.6vh', color: '#666', letterSpacing: '2px', textTransform: 'uppercase' },
+  controlsPrep: { display: 'flex', gap: '14px', marginTop: '10px' },
+  btnPrimario: {
+    border: 'none', padding: '14px 28px', borderRadius: '50px',
+    fontWeight: '800', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1vw',
+    color: '#000', letterSpacing: '0.5px'
+  },
+  btnSecundario: {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
+    color: 'white', padding: '14px 28px', borderRadius: '50px',
+    fontWeight: '700', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1vw'
+  },
+
+  // --- SIDEBAR ---
+  rightColumn: {
+    display: 'flex', flexDirection: 'column', gap: '16px',
+    width: '320px', minWidth: '280px', maxWidth: '360px', overflow: 'hidden', flexShrink: 0
+  },
+  glassCard: {
+    flex: 1, background: 'rgba(255,255,255,0.04)', borderRadius: '20px',
+    border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)',
+    padding: '18px', display: 'flex', flexDirection: 'column', overflow: 'hidden'
+  },
+  cardHeader: {
+    display: 'flex', alignItems: 'center', gap: '8px',
+    fontSize: '11px', fontWeight: '800', color: '#666',
+    marginBottom: '14px', letterSpacing: '2px', textTransform: 'uppercase', flexShrink: 0
+  },
+  queueContainer: { flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' },
+  emptyQueue: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', color: '#555'
+  },
+  queueItem: {
+    background: 'rgba(255,255,255,0.04)', padding: '12px 14px',
+    borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '12px',
+    border: '1px solid rgba(255,255,255,0.06)',
+  },
+  queueItemNext: {
+    background: 'rgba(255,215,0,0.05)',
+    border: '1px solid rgba(255,215,0,0.18)',
+    boxShadow: '0 0 20px rgba(255,215,0,0.06)',
+  },
+  nextUpLabel: {
+    fontSize: '9px', fontWeight: '800', letterSpacing: '2.5px',
+    color: '#ffd700', marginBottom: '3px', textTransform: 'uppercase',
+  },
+  rank: {
+    width: '32px', height: '32px', borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontWeight: '800', fontSize: '13px', flexShrink: 0
+  },
+  qTitle: {
+    fontWeight: '700', fontSize: '14px',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    color: '#fff', marginBottom: '2px'
+  },
+  qArtist: {
+    fontSize: '11px', color: '#666',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '3px'
+  },
+  qUser: {
+    display: 'flex', alignItems: 'center', gap: '5px',
+    fontSize: '12px', color: '#00f2ff', fontWeight: '600',
+    whiteSpace: 'nowrap', overflow: 'hidden'
+  },
+
+  // --- QR CARD ---
+  qrCard: {
+    background: 'rgba(0,242,255,0.04)', borderRadius: '20px',
+    border: '1px solid rgba(0,242,255,0.12)',
+    padding: '18px', display: 'flex', flexDirection: 'column',
+    alignItems: 'center', gap: '10px', flexShrink: 0,
+    boxShadow: '0 0 40px rgba(0,242,255,0.05)',
+  },
+  qrLabel: {
+    fontSize: '10px', fontWeight: '800', letterSpacing: '2px',
+    color: '#00f2ff', textTransform: 'uppercase', margin: 0, opacity: 0.85,
+  },
+  qrInner: {
+    background: '#fff', padding: '10px', borderRadius: '12px',
+    boxShadow: '0 0 40px rgba(0,242,255,0.2)'
+  },
+  qrSubLabel: {
+    fontSize: '10px', color: '#555', margin: 0, letterSpacing: '0.5px', fontFamily: 'monospace',
+  },
 };
 
-export default KaraokeTV;
+export default KaraokeTVDemo;

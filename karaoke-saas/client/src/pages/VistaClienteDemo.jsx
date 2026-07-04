@@ -77,13 +77,27 @@ const VistaCliente = () => {
     return () => clearTimeout(delayBusqueda);
   }, [busqueda]);
 
-  // Manejar subida de foto
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setAvatar(imageUrl);
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 200;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = evt.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const pedirCancion = (cancion) => {
@@ -112,7 +126,7 @@ const VistaCliente = () => {
       <nav style={styles.nav}>
         <div style={styles.logo} onClick={goBack}>
             <Mic2 size={22} color="#00f2ff" style={{ filter: "drop-shadow(0 0 5px #00f2ff)" }} />
-            <span>Karaoke<span style={{ color: "#00f2ff" }}>Pro</span></span>
+            <span>Vo<span style={{ color: "#00f2ff" }}>kara</span></span>
         </div>
         <div style={styles.barBadge}>{slug.toUpperCase()}</div>
       </nav>
@@ -129,7 +143,7 @@ const VistaCliente = () => {
               exit={{ opacity: 0, x: -100 }}
               style={styles.card}
             >
-              <h2 style={styles.titleGradient}>¿Quién va a cantar?</h2>
+              <h2 style={styles.titleGradient}>¿Quién canta hoy?</h2>
               
               <div style={styles.avatarContainer} onClick={() => fileInputRef.current.click()}>
                 <input type="file" ref={fileInputRef} style={{display: 'none'}} accept="image/*" onChange={handlePhotoUpload} />
@@ -145,10 +159,10 @@ const VistaCliente = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>TU APODO ARTÍSTICO</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej: La Rosalía" 
+                <label style={styles.label}>Nombre artístico</label>
+                <input
+                  type="text"
+                  placeholder="¿Cómo te llaman?"
                   style={styles.input}
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
@@ -156,7 +170,7 @@ const VistaCliente = () => {
               </div>
 
               <div style={styles.inputGroup}>
-                <label style={styles.label}>¿CUÁNTOS SOIS?</label>
+                <label style={styles.label}>Formato</label>
                 <div style={styles.singerSelector}>
                   {[1, 2, 3].map(num => (
                     <button 
@@ -176,7 +190,7 @@ const VistaCliente = () => {
                 disabled={!nickname}
                 onClick={() => setStep(2)}
               >
-                BUSCAR CANCIÓN
+                Elegir canción
               </button>
             </motion.div>
           )}
@@ -194,7 +208,7 @@ const VistaCliente = () => {
                 <div style={styles.miniProfile} onClick={() => setStep(1)}>
                   <img src={avatar || `https://ui-avatars.com/api/?name=${nickname}`} alt="mini" style={styles.miniAvatar} />
                   <div style={{flex:1}}>
-                    <div style={{fontSize:'12px', color:'#888'}}>Cantando como:</div>
+                    <div style={{fontSize:'12px', color:'#888'}}>Cantando</div>
                     <div style={{fontWeight:'bold', color:'white'}}>{nickname} {numSingers > 1 ? `(+${numSingers-1})` : ''}</div>
                   </div>
                   <div style={styles.editBtn}>Editar</div>
@@ -218,17 +232,16 @@ const VistaCliente = () => {
                 {busqueda.length < 3 ? (
                   <div style={styles.emptyState}>
                     <Music size={60} color="#222" />
-                    <p style={{marginTop:'15px', color:'#666'}}>Escribe para buscar tu Karaoke</p>
+                    <p style={{marginTop:'15px', color:'#666'}}>Escribe para buscar tu karaoke</p>
                   </div>
                 ) : buscando ? (
                    <div style={styles.emptyState}>
-                      <div className="animate-spin" style={{display:'inline-block', marginBottom:'10px'}}>⏳</div>
-                      <p style={{color:'#666'}}>Buscando el mejor resultado...</p>
+                      <p style={{color:'#666'}}>Buscando resultados...</p>
                    </div>
                 ) : resultados.length === 0 ? (
                    <div style={styles.emptyState}>
-                      <p style={{color:'#666'}}>No encontramos Karaokes exactos para eso 😕</p>
-                      <p style={{fontSize:'12px', color:'#444'}}>Intenta poner el nombre del artista</p>
+                      <p style={{color:'#666'}}>Sin resultados. Prueba con otro término.</p>
+                      <p style={{fontSize:'12px', color:'#444'}}>Intenta con el nombre del artista</p>
                    </div>
                 ) : (
                   // AQUÍ SOLO SE MOSTRARÁ 1 RESULTADO
@@ -246,7 +259,7 @@ const VistaCliente = () => {
                           <div style={styles.songRowTitle}>{r.titulo}</div>
                           <div style={styles.songRowArtist}>{r.artista}</div>
                        </div>
-                       <button style={styles.addBtn}>CANTAR</button>
+                       <button style={styles.addBtn}>Cantar</button>
                     </motion.div>
                   ))
                 )}
@@ -268,7 +281,7 @@ const VistaCliente = () => {
                   
                   <div style={styles.successHeader}>
                     <CheckCircle size={40} color="#00f2ff" />
-                    <h3>¡TURNO CONFIRMADO!</h3>
+                    <h3 style={{letterSpacing:'1px'}}>Turno confirmado</h3>
                   </div>
 
                   <div style={styles.ticketContent}>
@@ -277,7 +290,6 @@ const VistaCliente = () => {
                     
                     {cancionElegida && (
                         <div style={{textAlign:'center', marginTop:'10px', maxWidth:'100%'}}>
-                            <div style={{fontSize:'12px', color:'#888'}}>Has pedido:</div>
                             <div style={{fontSize:'14px', fontWeight:'bold', color:'#00f2ff', textOverflow:'ellipsis', overflow:'hidden', whiteSpace:'nowrap', maxWidth:'250px'}}>
                                 {cancionElegida.titulo}
                             </div>
@@ -292,7 +304,7 @@ const VistaCliente = () => {
                           <div style={{fontSize:'32px', fontWeight:'900', color:'#bd00ff'}}>#{turno}</div>
                         </div>
                         <div style={{textAlign:'right'}}>
-                          <div style={{fontSize:'12px', color:'#888'}}>Espera aprox</div>
+                          <div style={{fontSize:'12px', color:'#888'}}>Espera estimada</div>
                           <div style={{display:'flex', alignItems:'center', gap:'5px', justifyContent:'flex-end'}}>
                               <Clock size={16} /> 15 min
                           </div>
@@ -303,7 +315,7 @@ const VistaCliente = () => {
 
                 <div style={styles.actionsContainer}>
                   <button onClick={resetear} style={styles.actionBtnSecondary}>
-                    <RotateCcw size={16} /> Pedir Otra
+                    <RotateCcw size={16} /> Pedir otra
                   </button>
                   <button onClick={() => navigate('/')} style={styles.actionBtnPrimary}>
                     <Home size={16} /> Salir

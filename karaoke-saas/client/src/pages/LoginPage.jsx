@@ -153,10 +153,10 @@ const LoginPage = () => {
             <Mic2 size={32} color="#00f2ff" />
           </div>
           <h1 style={styles.title}>
-              {view === 'login' ? 'Acceso Dueños' : 'Recuperar Cuenta'}
+              {view === 'login' ? 'Panel de Administración' : 'Recuperar acceso'}
           </h1>
           <p style={styles.subtitle}>
-              {view === 'login' ? 'Gestiona tu Karaoke SaaS' : 'Te enviaremos un email de acceso'}
+              {view === 'login' ? 'Accede a tu panel de control' : 'Te enviaremos un enlace de recuperación'}
           </p>
         </div>
 
@@ -166,7 +166,7 @@ const LoginPage = () => {
           {/* Input Email (Común a ambos) */}
           {!successMsg && (
             <div style={styles.inputGroup}>
-                <label style={styles.label}>Email Corporativo</label>
+                <label style={styles.label}>Correo electrónico</label>
                 <div style={{
                 ...styles.inputWrapper,
                 borderColor: focusedInput === 'email' ? '#00f2ff' : '#333',
@@ -231,11 +231,11 @@ const LoginPage = () => {
                 </span>
                 ) : view === 'login' ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    Entrar al Panel <ArrowRight size={20} />
+                    Acceder <ArrowRight size={20} />
                 </span>
                 ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    Enviar Enlace <KeyRound size={20} />
+                    Enviar enlace <KeyRound size={20} />
                 </span>
                 )}
             </button>
@@ -250,7 +250,7 @@ const LoginPage = () => {
         </form>
 
         <div style={styles.footer}>
-          <p>¿No tienes cuenta? <span onClick={() => navigate('/')} style={styles.link}>Contacta con ventas</span></p>
+          <p>¿Aún no tienes cuenta? <span onClick={() => navigate('/sales')} style={styles.link}>Solicita una demostración</span></p>
         </div>
       </div>
     </div>

@@ -18,7 +18,7 @@ import "./index.css";
 
 function App() {
   return (
-    <Router basename="/karaoke-bar">
+    <Router>
       <Routes>
         {/* 2. Añade esta ruta como la principal "/" */}
         <Route path="/" element={<LandingPage />} />

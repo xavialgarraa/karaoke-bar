@@ -22,7 +22,7 @@ const VistaCliente = () => {
       <div style={desktopStyles.container}>
         <div style={desktopStyles.infoSide}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h1 style={desktopStyles.title}>Karaoke<span style={{color:'#00f2ff'}}>Pro</span></h1>
+            <h1 style={desktopStyles.title}>Vo<span style={{color:'#00f2ff'}}>kara</span></h1>
             <p style={desktopStyles.subtitle}>Escanea el QR y pide desde tu móvil.</p>
             <div style={desktopStyles.featureList}>
               <div style={desktopStyles.feature}>📱 Web App Nativa</div>
@@ -54,22 +54,93 @@ const AppContent = ({ slug, isSimulator }) => {
   // UI States
   const [step, setStep] = useState(1);
   const [buscando, setBuscando] = useState(false);
-  
+
   // Data States
   const [nickname, setNickname] = useState('');
   const [avatar, setAvatar] = useState(null);
   const [numSingers, setNumSingers] = useState(1);
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
-  
-  // TICKET STATE (Lo importante)
+
+  // TICKET STATE
   const [enviado, setEnviado] = useState(false);
-  const [miTicket, setMiTicket] = useState(null); // { turno: 55, cancion: {...} }
+  const [miTicket, setMiTicket] = useState(null);
   const [estadoCola, setEstadoCola] = useState({ personasDelante: 0, tiempoEspera: 0, esMiTurno: false });
+
+  // FIX Bug 1: ref to always hold latest miTicket without causing socket reconnects
+  const miTicketRef = useRef(null);
+  // Keep ref in sync with state
+  useEffect(() => {
+    miTicketRef.current = miTicket;
+  }, [miTicket]);
 
   const fileInputRef = useRef(null);
 
-  // 1. CONEXIÓN SOCKET
+  // localStorage key for this bar
+  const sessionKey = `karaoke_ticket_${slug}`;
+
+  // FIX Bug 2: find position by peticion id, not by turno_numero
+  const actualizarEstadoCola = async (peticionId) => {
+      try {
+          const res = await fetch(`${API_URL}/api/queue/${slug}`);
+          const cola = await res.json();
+
+          if (cola.length === 0) {
+              // Cola vacía: si tengo ticket puede que sea mi turno o me eliminaron
+              const currentTicket = miTicketRef.current;
+              if (currentTicket) {
+                  setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
+              }
+              return;
+          }
+
+          const idx = cola.findIndex(item => item.id === peticionId);
+
+          if (idx === -1) {
+              // Canción no encontrada: fue tocada o eliminada — reset
+              alert("¡Tu turno ha terminado! Esperamos que hayas brillado 🌟");
+              resetear();
+              return;
+          }
+
+          if (idx === 0) {
+              // Es el primero — ¡su turno!
+              setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
+          } else {
+              setEstadoCola({
+                  personasDelante: idx,
+                  tiempoEspera: idx * 4,
+                  esMiTurno: false
+              });
+          }
+      } catch (err) {
+          console.error("Error actualizando estado:", err);
+      }
+  };
+
+  // FIX Bug 3: Restore from localStorage on mount
+  useEffect(() => {
+      const saved = localStorage.getItem(sessionKey);
+      if (saved) {
+          try {
+              const { ticket, nickname: savedNickname, avatar: savedAvatar } = JSON.parse(saved);
+              if (ticket && ticket.cancion && ticket.cancion.id) {
+                  setMiTicket(ticket);
+                  setEnviado(true);
+                  if (savedNickname) setNickname(savedNickname);
+                  if (savedAvatar) setAvatar(savedAvatar);
+                  setStep(2);
+                  // Recalculate position after state settles
+                  setTimeout(() => actualizarEstadoCola(ticket.cancion.id), 500);
+              }
+          } catch (e) {
+              localStorage.removeItem(sessionKey);
+          }
+      }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 1. CONEXIÓN SOCKET — FIX Bug 1: deps only [slug], read miTicket from ref inside listeners
   useEffect(() => {
     socketRef.current = io(API_URL);
     socketRef.current.emit('unirse_bar', slug);
@@ -78,66 +149,32 @@ const AppContent = ({ slug, isSimulator }) => {
     socketRef.current.on('turno_confirmado', (data) => {
         console.log("🎟️ Ticket recibido:", data);
         setMiTicket(data);
+        miTicketRef.current = data;
         setEnviado(true);
         setBuscando(false);
-        actualizarEstadoCola(data.turno); // Calculamos posición inicial
+        // FIX Bug 3: persist to localStorage
+        setNickname(prev => {
+            localStorage.setItem(sessionKey, JSON.stringify({ ticket: data, nickname: prev, avatar: avatar }));
+            return prev;
+        });
+        // FIX Bug 2: use cancion.id for position lookup
+        actualizarEstadoCola(data.cancion.id);
     });
 
-    // B. CAMBIO DE TURNO (Alguien cantó, la cola avanza)
+    // B. CAMBIO DE TURNO — read ticket from ref, not closure
     socketRef.current.on('cambio_de_turno', () => {
         console.log("🔄 La cola ha avanzado. Recalculando...");
-        if (miTicket) {
-            actualizarEstadoCola(miTicket.turno);
+        const currentTicket = miTicketRef.current;
+        if (currentTicket && currentTicket.cancion && currentTicket.cancion.id) {
+            actualizarEstadoCola(currentTicket.cancion.id);
         }
     });
 
     socketRef.current.on('error_peticion', (msg) => { alert(msg); setBuscando(false); });
 
     return () => { if (socketRef.current) socketRef.current.disconnect(); };
-  }, [slug, miTicket]); // Dependencia miTicket para poder usarlo dentro del evento
-
-  // 2. FUNCIÓN INTELIGENTE: CALCULAR POSICIÓN
-  const actualizarEstadoCola = async (miNumeroTurno) => {
-      try {
-          // Pedimos la cola actual al servidor
-          const res = await fetch(`${API_URL}/api/queue/${slug}`);
-          const cola = await res.json();
-          
-          if (cola.length > 0) {
-              const turnoActual = cola[0].turno_numero; // El que está cantando ahora
-              
-              // Si mi turno es MENOR que el actual, es que ya pasé (me eliminaron o canté)
-              if (miNumeroTurno < turnoActual) {
-                  // Resetear app (o mostrar pantalla de "Gracias por cantar")
-                  alert("¡Tu turno ha terminado! Esperamos que hayas brillado 🌟");
-                  resetear();
-                  return;
-              }
-
-              // Cálculos
-              const diferencia = miNumeroTurno - turnoActual;
-              
-              if (diferencia === 0) {
-                  // ¡ES AHORA!
-                  setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
-              } else {
-                  // Aún falta
-                  setEstadoCola({
-                      personasDelante: diferencia,
-                      tiempoEspera: diferencia * 4, // 4 min por canción aprox
-                      esMiTurno: false
-                  });
-              }
-          } else {
-             // Si la cola está vacía pero yo tengo ticket... algo raro pasó o soy el siguiente
-             if (miTicket) {
-                 setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
-             }
-          }
-      } catch (err) {
-          console.error("Error actualizando estado:", err);
-      }
-  };
+  // FIX Bug 1: only [slug] as dep — no miTicket dependency causing reconnect loop
+  }, [slug]);
 
   // 3. BUSCADOR
   useEffect(() => {
@@ -149,7 +186,7 @@ const AppContent = ({ slug, isSimulator }) => {
           if (!res.ok) throw new Error("Error");
           const data = await res.json();
           setResultados(data.map(v => ({ id: v.id, titulo: v.titulo, artista: v.canal, cover: v.imagen })));
-        } catch (error) { setResultados([]); } 
+        } catch (error) { setResultados([]); }
         finally { setBuscando(false); }
     }, 1500);
     return () => clearTimeout(delay);
@@ -162,7 +199,7 @@ const AppContent = ({ slug, isSimulator }) => {
           const res = await fetch(`${API_URL}/api/catalog/random`);
           const song = await res.json();
           setResultados([{ id: song.video_id || song.id, titulo: song.titulo, artista: song.artista, cover: song.cover_url || song.imagen }]);
-      } catch (err) { alert("Error buscando aleatoria"); } 
+      } catch (err) { alert("Error buscando aleatoria"); }
       finally { setBuscando(false); }
   };
 
@@ -181,11 +218,33 @@ const AppContent = ({ slug, isSimulator }) => {
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
-    if (file) setAvatar(URL.createObjectURL(file));
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 200;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        // Crop to centered square
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        setAvatar(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = evt.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   const resetear = () => {
-    setEnviado(false); setBusqueda(''); setMiTicket(null); setResultados([]); setEstadoCola({ personasDelante:0, tiempoEspera:0, esMiTurno:false });
+    // FIX Bug 3: clear localStorage on reset
+    localStorage.removeItem(sessionKey);
+    setEnviado(false); setBusqueda(''); setMiTicket(null); miTicketRef.current = null;
+    setResultados([]); setEstadoCola({ personasDelante:0, tiempoEspera:0, esMiTurno:false });
   };
 
   const containerStyle = isSimulator ? styles.simulatorContainer : styles.container;
@@ -198,22 +257,22 @@ const AppContent = ({ slug, isSimulator }) => {
       <nav style={styles.nav}>
         <div style={styles.logo} onClick={() => step === 2 && setStep(1)}>
             <Mic2 size={20} color="#00f2ff" />
-            <span>Karaoke<span style={{ color: "#00f2ff" }}>Pro</span></span>
+            <span>Vo<span style={{ color: "#00f2ff" }}>kara</span></span>
         </div>
         <div style={styles.barBadge}>{slug.toUpperCase()}</div>
       </nav>
 
       <div style={styles.mainContent}>
         <AnimatePresence mode='wait'>
-          
+
           {/* PASO 1: PERFIL */}
           {step === 1 && (
-            <motion.div 
+            <motion.div
               key="step1" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, x: -50 }}
               style={styles.card}
             >
               <h2 style={styles.titleGradient}>¿Quién va a cantar?</h2>
-              
+
               <div style={styles.avatarContainer} onClick={() => fileInputRef.current.click()}>
                 <input type="file" ref={fileInputRef} style={{display: 'none'}} accept="image/*" onChange={handlePhotoUpload} />
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} style={{width:'100%', height:'100%'}}>
@@ -295,7 +354,7 @@ const AppContent = ({ slug, isSimulator }) => {
             </motion.div>
           )}
 
-          {/* PASO 3: TICKET REAL ACTUALIZADO */}
+          {/* PASO 3: TICKET */}
           {enviado && miTicket && (
              <motion.div
                 key="success"
@@ -304,10 +363,10 @@ const AppContent = ({ slug, isSimulator }) => {
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
                 style={estadoCola.esMiTurno ? styles.turnCard : styles.ticketContainer}
              >
-                {/* SI ES MI TURNO: PANTALLA ESPECIAL */}
+                {/* SI ES MI TURNO */}
                 {estadoCola.esMiTurno ? (
                     <div style={{textAlign:'center', padding:'20px'}}>
-                        <motion.div 
+                        <motion.div
                             animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
                             transition={{ repeat: Infinity, duration: 1 }}
                         >
@@ -320,11 +379,11 @@ const AppContent = ({ slug, isSimulator }) => {
                         </div>
                     </div>
                 ) : (
-                    // SI ESTÁ ESPERANDO: TICKET NORMAL
+                    // SI ESTÁ ESPERANDO: TICKET
                     <div style={styles.ticketCard}>
                         <div style={{...styles.ticketHole, top: '160px', left: '-10px'}}></div>
                         <div style={{...styles.ticketHole, top: '160px', right: '-10px'}}></div>
-                        
+
                         <div style={styles.successHeader}>
                             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={styles.checkIconWrapper}>
                                 <CheckCircle size={32} color="#000" />
@@ -346,14 +405,13 @@ const AppContent = ({ slug, isSimulator }) => {
                                 <div style={{width:'1px', background:'#eee'}}></div>
                                 <div style={styles.ticketItem}>
                                     <span>DELANTE DE TI</span>
-                                    {/* AQUÍ ESTÁ LA MAGIA DEL CONTADOR QUE BAJA 👇 */}
                                     <strong style={{color:'#000', fontSize:'28px'}}>
                                         {estadoCola.personasDelante}
                                     </strong>
                                     <span style={{fontSize:'10px'}}>Personas</span>
                                 </div>
                             </div>
-                            
+
                             <div style={{marginTop:'15px', background:'#f5f5f5', padding:'8px 15px', borderRadius:'10px', fontSize:'12px', color:'#666', display:'flex', alignItems:'center', gap:'5px'}}>
                                 <Clock size={12}/> Espera aprox: <b>{estadoCola.tiempoEspera} min</b>
                             </div>

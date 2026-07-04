@@ -67,7 +67,6 @@ const searchVideos = async (req, res) => {
             part: 'snippet',
             q: term,
             type: 'video',
-            videoEmbeddable: 'true',
             maxResults: 10
         });
 
@@ -82,24 +81,18 @@ const searchVideos = async (req, res) => {
         // ============================================================
         // PASO 3: FILTRO DE CALIDAD ANTES DE GUARDAR
         // ============================================================
-        
-        // Solo guardamos en la BD si parece un Karaoke de verdad
-        const videosDeCalidad = videosAPI.filter(video => {
-            const titulo = video.titulo.toLowerCase();
-            return titulo.includes('karaoke');
+        const videosSoloKaraokeMedia = videosAPI.filter(video => {
+            const canal = video.canal.toLowerCase();
+            // Puedes añadir más canales aquí con ||
+            return canal.includes('karaokemedia'); 
         });
 
-        // Guardamos SOLO los buenos (pueden ser 10, pueden ser 4, o ninguno)
-        if (videosDeCalidad.length > 0) {
-            // Guardaremos solo los 3 primeros de calidad para no llenar la BD
-            const top3Videos = videosDeCalidad.slice(0, 3);
-            guardarResultadosEnBD(top3Videos);
-        } else {
-            console.log("🗑️ Se obtuvieron resultados, pero ninguno cumplía los requisitos de calidad para guardarse.");
-        }        
+        if (videosSoloKaraokeMedia.length > 0) {
+            guardarResultadosEnBD(videosSoloKaraokeMedia.slice(0, 3));
+        }
 
-        // Enviamos los resultados frescos al cliente
-        res.json(videosAPI);
+        res.json(videosSoloKaraokeMedia);
+        
 
     } catch (error) {
         console.error('❌ Error:', error.message);

@@ -31,11 +31,11 @@ const KaraokeLanding = () => {
           <div style={styles.logoContainer} onClick={() => window.scrollTo(0,0)}>
             <Mic2 style={styles.logoIcon} />
             <span style={styles.logoText}>
-              Karaoke<span style={styles.logoCyan}>SaaS</span>
+              Vo<span style={styles.logoCyan}>kara</span>
             </span>
           </div>
           <button style={styles.navButton} onClick={() => navigate('/login')}>
-            Acceso Dueños
+            Acceso Administradores
           </button>
         </div>
       </nav>
@@ -45,17 +45,17 @@ const KaraokeLanding = () => {
         <div style={styles.heroInner}>
           <div style={styles.leftColumn}>
             <div style={styles.badge}>
-              🚀 La revolución del Karaoke en España
+              ✦ Plataforma profesional de karaoke digital
             </div>
-            
+
             <h1 style={styles.title}>
-              Tu Bar, Más Rentable<br />
-              <span style={styles.gradientText}>Sin Papel ni Líos</span>
+              Tu karaoke,<br />
+              <span style={styles.gradientText}>Sin Complicaciones</span>
             </h1>
-            
+
             <p style={styles.subtitle}>
-              Olvídate de las notas de papel y los borrachos gritando al DJ. 
-              Tus clientes escanean un QR, piden su canción y la TV lo gestiona sola.
+              Tus clientes escanean un código QR desde su móvil, eligen su canción
+              y la pantalla TV gestiona la sesión de forma completamente autónoma.
             </p>
 
             <div style={styles.ctaContainer}>
@@ -73,7 +73,7 @@ const KaraokeLanding = () => {
             <div style={styles.socialProof}>
               <div style={styles.proofItem}>
                 <Star style={styles.starIcon} fill="currentColor" />
-                <span>Validado por técnicos de sonido</span>
+                <span>Probado en locales reales · Soporte incluido</span>
               </div>
             </div>
           </div>
@@ -114,22 +114,22 @@ const KaraokeLanding = () => {
       {/* CÓMO FUNCIONA (NUEVA SECCIÓN) */}
       <section style={styles.stepsSection}>
          <div style={styles.sectionInner}>
-            <h2 style={styles.sectionTitle}>Tan fácil que no necesita <span style={styles.gradientText}>instrucciones</span></h2>
+            <h2 style={styles.sectionTitle}>Tres pasos para una <span style={styles.gradientText}>noche perfecta</span></h2>
             <div style={styles.stepsGrid}>
-               <StepCard 
-                  num="1" 
-                  title="El cliente escanea" 
-                  desc="Sin descargar Apps. Un código QR en la mesa abre la web al instante."
+               <StepCard
+                  num="1"
+                  title="Acceso inmediato"
+                  desc="Sin descargar ninguna app. El código QR en la mesa abre la plataforma al instante desde cualquier móvil."
                />
-               <StepCard 
-                  num="2" 
-                  title="Pide su canción" 
-                  desc="Busca en YouTube desde su móvil. Nuestro filtro evita versiones malas."
+               <StepCard
+                  num="2"
+                  title="Elige la canción"
+                  desc="Accede a millones de canciones en YouTube. El sistema filtra automáticamente las versiones de mayor calidad."
                />
-               <StepCard 
-                  num="3" 
-                  title="La TV hace el resto" 
-                  desc="El sistema organiza la cola y reproduce el video automáticamente."
+               <StepCard
+                  num="3"
+                  title="La pantalla lo gestiona"
+                  desc="El sistema organiza los turnos y reproduce el vídeo de forma completamente autónoma."
                />
             </div>
          </div>
@@ -139,28 +139,28 @@ const KaraokeLanding = () => {
       <section style={styles.featuresSection}>
         <div style={styles.sectionInner}>
           <div style={styles.featuresGrid}>
-            <FeatureCard 
+            <FeatureCard
               icon={<Smartphone style={styles.featureIcon} />}
-              title="Cero Fricción"
-              desc="Tus clientes no tienen que registrarse ni bajar nada. Más fácil, imposible."
+              title="Sin Fricciones"
+              desc="Acceso inmediato vía QR. Sin registros, sin descargas, sin barreras de entrada para tus clientes."
               color="#06b6d4"
             />
-            <FeatureCard 
+            <FeatureCard
               icon={<Tv style={styles.featureIcon} />}
-              title="Pantalla Split"
-              desc="Video a la izquierda, lista de espera a la derecha. Todo el bar sabe cuándo le toca."
+              title="Vista Profesional"
+              desc="Vídeo a pantalla completa con lista de espera lateral. El público sabe en todo momento cuándo es su turno."
               color="#a855f7"
             />
-            <FeatureCard 
+            <FeatureCard
               icon={<Shield style={styles.featureIcon} />}
-              title="Anti-Trolls"
-              desc="¿Un cliente gracioso quiere poner una canción de 10 minutos? El sistema la bloquea."
+              title="Control de Contenido"
+              desc="Filtros automáticos y panel de administración que garantizan una experiencia de calidad para todos."
               color="#ec4899"
             />
-            <FeatureCard 
+            <FeatureCard
               icon={<Zap style={styles.featureIcon} />}
-              title="Auto-Gestión"
-              desc="El DJ ya no es un secretario. Se dedica a animar, no a apuntar nombres."
+              title="Gestión Autónoma"
+              desc="El sistema organiza la cola sin intervención manual, liberando al animador para lo que realmente importa."
               color="#06b6d4"
             />
           </div>
@@ -171,19 +171,19 @@ const KaraokeLanding = () => {
       <section style={styles.pricingSection}>
         <div style={styles.sectionInner}>
           <h2 style={styles.sectionTitle}>
-            Rentable desde la <span style={styles.gradientText}>primera copa</span>
+            Precio claro, <span style={styles.gradientText}>sin sorpresas</span>
           </h2>
-          <p style={styles.pricingSubtitle}>Más barato que contratar a alguien para gestionar la cola.</p>
+          <p style={styles.pricingSubtitle}>Una inversión que se amortiza desde la primera noche de uso.</p>
 
           <div style={styles.pricingGrid}>
-            <PricingCard 
+            <PricingCard
               name="Licencia Profesional"
               price="45"
               features={[
-                'Sistema completo QR + TV',
+                'Sistema completo QR + pantalla TV',
                 'Cola de turnos ilimitada',
                 'Soporte técnico prioritario',
-                'Instalación y Configuración (Pago único)'
+                'Puesta en marcha incluida (pago único)'
               ]}
               highlight={true}
             />
@@ -194,23 +194,23 @@ const KaraokeLanding = () => {
       {/* FAQ SECTION (NUEVA) */}
       <section style={styles.faqSection}>
         <div style={styles.sectionInner}>
-          <h2 style={styles.sectionTitle}>Preguntas Frecuentes</h2>
+          <h2 style={styles.sectionTitle}>Preguntas frecuentes</h2>
           <div style={styles.faqContainer}>
-            <FaqItem 
-               question="¿Necesito un ordenador potente?" 
-               answer="No. Cualquier portátil básico o mini-PC conectado a la TV funciona perfectamente."
+            <FaqItem
+               question="¿Qué equipo necesito para instalarlo?"
+               answer="Cualquier portátil básico o mini-PC conectado a la televisión es suficiente. No se requiere hardware especializado."
                isOpen={openFaq === 0}
                onClick={() => toggleFaq(0)}
             />
-            <FaqItem 
-               question="¿Qué pasa si se va internet?" 
-               answer="El sistema guarda las canciones en caché local para que la música no pare de golpe."
+            <FaqItem
+               question="¿Qué ocurre si se pierde la conexión a internet?"
+               answer="El sistema mantiene la sesión activa el mayor tiempo posible. Para un funcionamiento óptimo recomendamos una conexión estable, aunque el impacto suele ser mínimo."
                isOpen={openFaq === 1}
                onClick={() => toggleFaq(1)}
             />
-            <FaqItem 
-               question="¿Cómo controla el dueño la cola?" 
-               answer="Tienes un panel de administrador secreto para saltar turnos, borrar canciones o banear usuarios."
+            <FaqItem
+               question="¿Cómo gestiona el administrador la sesión?"
+               answer="Desde el panel de administración puedes gestionar turnos, eliminar canciones y controlar el acceso en tiempo real desde cualquier dispositivo."
                isOpen={openFaq === 2}
                onClick={() => toggleFaq(2)}
             />
@@ -223,9 +223,9 @@ const KaraokeLanding = () => {
         <div style={styles.footerInner}>
           <div style={styles.footerLogo}>
             <Mic2 style={styles.footerIcon} />
-            <span style={styles.footerBrand}>KaraokeSaaS</span>
+            <span style={styles.footerBrand}>Vokara</span>
           </div>
-          <div style={styles.footerCopy}>© 2025 - Hecho para técnicos de sonido</div>
+          <div style={styles.footerCopy}>© 2026 Vokara · Todos los derechos reservados</div>
         </div>
       </footer>
     </div>
@@ -274,13 +274,13 @@ const PricingCard = ({ name, price, features, highlight }) => {
   const navigate = useNavigate();
   return (
     <div style={{...styles.pricingCard, ...(highlight ? styles.pricingCardHighlight : {})}}>
-      {highlight && <div style={styles.popularBadge}>OFERTA DE LANZAMIENTO</div>}
+      {highlight && <div style={styles.popularBadge}>PRECIO DE LANZAMIENTO</div>}
       <h3 style={styles.pricingName}>{name}</h3>
       <div style={styles.pricingPrice}>
         <span style={styles.pricingAmount}>{price}€</span>
         <span style={styles.pricingPeriod}>/mes</span>
       </div>
-      <p style={{color:'#666', fontSize:'12px', marginBottom:'20px'}}>+ Cuota de alta (instalación)</p>
+      <p style={{color:'#666', fontSize:'12px', marginBottom:'20px'}}>+ Puesta en marcha (pago único)</p>
       <ul style={styles.featureList}>
         {features.map((feature, idx) => (
           <li key={idx} style={styles.featureListItem}>
@@ -290,7 +290,7 @@ const PricingCard = ({ name, price, features, highlight }) => {
         ))}
       </ul>
       <button style={styles.pricingBtnHighlight} onClick={() => navigate('/sales')}>
-        Contactar para Demo
+        Solicitar demostración
       </button>
     </div>
   );

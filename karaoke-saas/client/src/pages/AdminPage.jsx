@@ -30,7 +30,7 @@ const AdminDashboard = () => {
   });
 
   // URL PÚBLICA
-  const publicUrl = `${window.location.origin}/karaoke-bar/${barData.slug}`;
+  const publicUrl = `${window.location.origin}/${barData.slug}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${publicUrl}&color=000000&bgcolor=ffffff`;
 
   // --- 1. INICIALIZACIÓN ---
@@ -175,7 +175,7 @@ const AdminDashboard = () => {
 
   const copyTvLink = () => {
     const token = localStorage.getItem('karaoke_token');
-    const url = `${window.location.origin}/karaoke-bar/tv/${barData.slug}?t=${token}`;
+    const url = `${window.location.origin}/tv/${barData.slug}?t=${token}`;
     navigator.clipboard.writeText(url);
     alert("Copiado: " + url);
   };
@@ -197,10 +197,10 @@ const AdminDashboard = () => {
         </head>
         <body>
           <div class="container">
-            <h1>¡Pide tu Canción!</h1>
+            <h1>Pide tu Canción</h1>
             <h2>${barData.nombre}</h2>
             <img src="${qrImageUrl}" />
-            <div class="footer">Escanea o entra en:<br/>${publicUrl}</div>
+            <div class="footer">Escanea el código o accede en:<br/>${publicUrl}</div>
           </div>
           <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
         </body>
@@ -217,7 +217,7 @@ const AdminDashboard = () => {
       <nav style={styles.nav}>
         <div style={styles.logoSection}>
           <Mic2 color="#00f2ff" /> 
-          <span style={{fontWeight:'bold'}}>KaraokeAdmin</span>
+          <span style={{fontWeight:'bold'}}>Vo<span style={{color:'#00f2ff'}}>kara</span></span>
         </div>
 
         {/* SWITCH BLOQUEO */}
@@ -269,8 +269,8 @@ const AdminDashboard = () => {
         <div style={{...styles.queueSection, opacity: isSocketActive ? 1 : 0.6, filter: isSocketActive ? 'none' : 'grayscale(0.8)', transition: 'all 0.3s'}}>
           <div style={styles.sectionHeader}>
             <div>
-                <h2 style={styles.sectionTitle}>Cola de Reproducción ({queue.length})</h2>
-                <span style={styles.hint}>* Arrastrar para reordenar (Próximamente)</span>
+                <h2 style={styles.sectionTitle}>Cola de reproducción ({queue.length})</h2>
+                <span style={styles.hint}>Reordenar por arrastrar — próximamente</span>
             </div>
             {!isSocketActive && <span style={styles.offlineBadge}>SISTEMA CERRADO</span>}
           </div>
@@ -280,8 +280,8 @@ const AdminDashboard = () => {
                 <div style={styles.emptyState}><Loader2 className="animate-spin"/> Cargando...</div>
             ) : queue.length === 0 ? (
                 <div style={styles.emptyState}>
-                    <p>La cola está vacía 😴</p>
-                    <p style={{fontSize:'12px', color:'#666'}}>¡Sistema listo para recibir pedidos!</p>
+                    <p>No hay canciones en cola</p>
+                    <p style={{fontSize:'12px', color:'#666'}}>El sistema está listo para recibir solicitudes.</p>
                 </div>
             ) : (
                 // NOTA: Reorder solo es visual si no conectamos el endpoint 'reorderQueue'
@@ -351,7 +351,7 @@ const AdminDashboard = () => {
                     </div>
                     <div style={{flex: 1}}>
                         <p style={{fontSize: '12px', color: '#aaa', marginBottom: '8px'}}>
-                            Escanea para pedir.
+                            Escanea para solicitar canciones.
                         </p>
                         <button onClick={handlePrintQR} style={styles.printBtn}>
                             <Printer size={14} /> IMPRIMIR
@@ -367,7 +367,7 @@ const AdminDashboard = () => {
                     <h3 style={{fontSize:'16px', fontWeight:'bold', margin:0}}>Pantalla TV</h3>
                 </div>
                 <div style={styles.tvActionsGrid}>
-                    <button onClick={() => window.open(`${window.location.origin}/karaoke-bar/tv/${barData.slug}?t=${token}`, '_blank')} style={styles.tvBtnPrimary}>
+                    <button onClick={() => window.open(`${window.location.origin}/tv/${barData.slug}?t=${token}`, '_blank')} style={styles.tvBtnPrimary}>
                         <ExternalLink size={16} /> ABRIR TV
                     </button>
                     <button onClick={copyTvLink} style={styles.tvBtnSecondary}>

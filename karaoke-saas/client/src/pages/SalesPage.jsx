@@ -44,7 +44,7 @@ const SalesPage = () => {
           <div style={{ ...styles.logoContainer, justifyContent: isMobile ? 'center' : 'flex-start' }}>
             <Mic2 size={40} color="#00f2ff" />
             <h1 style={styles.brandName}>
-              Karaoke<span style={{ color: '#00f2ff' }}>SaaS</span>
+              Vo<span style={{ color: '#00f2ff' }}>kara</span>
             </h1>
           </div>
 
@@ -52,19 +52,19 @@ const SalesPage = () => {
             ...styles.headline,
             fontSize: isMobile ? '36px' : '48px'
           }}>
-            Digitaliza tu escenario.<br />Llena tu bar.
+            Tecnología profesional<br />para tu karaoke.
           </h2>
 
           <p style={styles.description}>
-            Deja que tus clientes pidan canciones desde el móvil mientras tú sirves copas.
-            Olvídate de los papeles y las quejas al DJ.
+            Permite que tus clientes soliciten canciones desde su móvil mientras tú te centras
+            en ofrecer la mejor experiencia. Sin papel, sin colas, sin complicaciones.
           </p>
 
           <ul style={styles.benefitsList}>
-            <li>✅ Instalación en 5 minutos</li>
-            <li>✅ Catálogo de YouTube ilimitado</li>
-            <li>✅ Pantalla de TV automática</li>
-            <li>✅ Panel de control anti-trolls</li>
+            <li>✓ &nbsp;Puesta en marcha rápida y sencilla</li>
+            <li>✓ &nbsp;Catálogo ilimitado vía YouTube</li>
+            <li>✓ &nbsp;Pantalla TV gestionada automáticamente</li>
+            <li>✓ &nbsp;Panel de administración en tiempo real</li>
           </ul>
         </div>
 
@@ -72,27 +72,27 @@ const SalesPage = () => {
         <div style={styles.card}>
           {!submitted ? (
             <>
-              <h3 style={styles.formTitle}>Contactar Ventas</h3>
-              <p style={styles.formSubtitle}>Te llamamos y te damos una demo gratis.</p>
+              <h3 style={styles.formTitle}>Solicitar información</h3>
+              <p style={styles.formSubtitle}>Te contactamos para una demostración personalizada sin compromiso.</p>
 
               <form onSubmit={handleSubmit} style={styles.form}>
-                <Input icon={<User size={18} />} placeholder="Tu Nombre" />
-                <Input icon={<Building size={18} />} placeholder="Nombre del Bar" />
-                <Input icon={<Phone size={18} />} placeholder="Teléfono / WhatsApp" />
-                <Input icon={<Mail size={18} />} placeholder="Email" />
+                <Input icon={<User size={18} />} placeholder="Nombre y apellidos" />
+                <Input icon={<Building size={18} />} placeholder="Nombre del local" />
+                <Input icon={<Phone size={18} />} placeholder="Teléfono de contacto" />
+                <Input icon={<Mail size={18} />} placeholder="Correo electrónico" />
 
                 <button type="submit" style={styles.submitBtn} disabled={loading}>
-                  {loading ? 'Enviando...' : <><Send size={18} /> Solicitar Demo</>}
+                  {loading ? 'Enviando...' : <><Send size={18} /> Solicitar demostración</>}
                 </button>
               </form>
             </>
           ) : (
             <div style={styles.successState}>
               <CheckCircle size={60} color="#00f2ff" />
-              <h3>¡Recibido!</h3>
-              <p>Te contactamos en menos de 24h.</p>
+              <h3>Solicitud recibida</h3>
+              <p>Nos pondremos en contacto contigo en menos de 24 horas.</p>
               <button onClick={() => navigate('/')} style={styles.homeBtn}>
-                Ir al Inicio
+                Volver al inicio
               </button>
             </div>
           )}
