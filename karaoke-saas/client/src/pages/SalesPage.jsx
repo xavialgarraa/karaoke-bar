@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic2, Mail, User, Building, Phone, Send, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, User, Building, Phone, Send, ArrowLeft, CheckCircle } from 'lucide-react';
+import vokaraLogo from '../assets/logo.png';
 
 const SalesPage = () => {
   const navigate = useNavigate();
@@ -42,10 +43,8 @@ const SalesPage = () => {
         {/* INFO */}
         <div style={{ ...styles.infoSection, textAlign: isMobile ? 'center' : 'left' }}>
           <div style={{ ...styles.logoContainer, justifyContent: isMobile ? 'center' : 'flex-start' }}>
-            <Mic2 size={40} color="#00f2ff" />
-            <h1 style={styles.brandName}>
-              Vo<span style={{ color: '#00f2ff' }}>kara</span>
-            </h1>
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '48px', width: '48px', borderRadius: '50%', objectFit: 'cover' }} />
+            <h1 style={styles.brandName}>Vokara</h1>
           </div>
 
           <h2 style={{

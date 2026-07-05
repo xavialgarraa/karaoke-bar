@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Mic2, Search, User, Music, CheckCircle, Clock, Users, Camera, Plus, X, Home, RotateCcw } from 'lucide-react';
+import { Search, User, Music, CheckCircle, Clock, Users, Camera, Plus, X, Home, RotateCcw } from 'lucide-react';
+import vokaraLogo from '../assets/logo.png';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const VistaCliente = () => {
@@ -35,9 +36,8 @@ const VistaCliente = () => {
         return;
     }
 
-    setBuscando(true); // Mostramos "Buscando..." mientras escribe
+    setBuscando(true);
 
-    // DEBOUNCE AUMENTADO A 3000ms (3 segundos) para ahorrar peticiones
     const delayBusqueda = setTimeout(async () => {
         try {
           const response = await fetch(`${import.meta.env.VITE_CLIENT_URL}/api/youtube/search?query=${encodeURIComponent(busqueda)}`);
@@ -48,16 +48,7 @@ const VistaCliente = () => {
               return;
           }
 
-          // 1. FILTRO ESTRICTO: Solo videos que digan "karaoke" en el título
-          const soloKaraokes = data.filter(v => 
-            v.titulo.toLowerCase().includes('karaoke')
-          );
-
-          // 2. SOLO UN RESULTADO: Cogemos el primero (el mejor match) o ninguno
-          const mejorResultado = soloKaraokes.length > 0 ? [soloKaraokes[0]] : [];
-
-          // 3. MAPEO DE DATOS
-          const videosFormateados = mejorResultado.map(v => ({
+          const videosFormateados = data.slice(0, 6).map(v => ({
             id: v.id,
             titulo: v.titulo,
             artista: v.canal,
@@ -70,9 +61,9 @@ const VistaCliente = () => {
           console.error("Error:", error);
           setResultados([]);
         } finally {
-            setBuscando(false); // Ocultamos carga
+            setBuscando(false);
         }
-    }, 3000); // <--- TIEMPO DE ESPERA AUMENTADO
+    }, 600);
 
     return () => clearTimeout(delayBusqueda);
   }, [busqueda]);
@@ -125,8 +116,8 @@ const VistaCliente = () => {
       {/* Header */}
       <nav style={styles.nav}>
         <div style={styles.logo} onClick={goBack}>
-            <Mic2 size={22} color="#00f2ff" style={{ filter: "drop-shadow(0 0 5px #00f2ff)" }} />
-            <span>Vo<span style={{ color: "#00f2ff" }}>kara</span></span>
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '26px', width: '26px', borderRadius: '50%', objectFit: 'cover' }} />
+            <span>Vokara</span>
         </div>
         <div style={styles.barBadge}>{slug.toUpperCase()}</div>
       </nav>

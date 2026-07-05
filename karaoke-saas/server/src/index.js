@@ -25,6 +25,7 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
+require('../services/socket').setIo(io);
 
 // Rate limit: socketId -> timestamp of last pedir_cancion
 const requestCooldown = new Map();
@@ -131,7 +132,7 @@ io.on("connection", async (socket) => {
         try {
             console.log(`⏭️ Pasando canción ${idCancionActual}`);
 
-            if (idCancionActual) {
+            if (idCancionActual && !String(idCancionActual).startsWith('filler_')) {
                 await pool.query(
                     "UPDATE peticiones SET estado = 'played', played_at = NOW() WHERE id = ?",
                     [idCancionActual]

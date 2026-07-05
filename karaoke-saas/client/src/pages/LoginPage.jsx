@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic2, Lock, Mail, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ArrowLeft, Loader2, Eye, EyeOff, KeyRound } from 'lucide-react';
+import vokaraLogo from '../assets/logo.png';
 
 // URL del Backend
 const API_URL = import.meta.env.VITE_CLIENT_URL || "http://localhost:3001";
@@ -150,7 +151,7 @@ const LoginPage = () => {
       <div style={styles.card}>
         <div style={styles.header}>
           <div style={styles.iconContainer}>
-            <Mic2 size={32} color="#00f2ff" />
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '52px', width: '52px', borderRadius: '50%', objectFit: 'cover' }} />
           </div>
           <h1 style={styles.title}>
               {view === 'login' ? 'Panel de Administración' : 'Recuperar acceso'}

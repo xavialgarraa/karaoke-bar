@@ -35,7 +35,7 @@ router.post('/queue/reorder', verifyToken, adminController.reorderQueue);   // R
 
 // Configuración
 router.put('/bar/:currentSlug', verifyToken, adminController.updateBarConfig); // Editar bar
-router.get('/bar/data/:slug', verifyToken, adminController.getBarInfo);              // Datos del bar
+router.get('/bar/data/:slug', adminController.getBarInfo);                           // Datos del bar (público)
 
 // ... al final del archivo
 
@@ -43,8 +43,16 @@ router.get('/bar/data/:slug', verifyToken, adminController.getBarInfo);         
 // 🎵 PIPELINE (descarga + letras)
 // ==========================================
 
-router.get('/pipeline/status/:videoId', (req, res) => {
-  res.json({ status: pipeline.getStatus(req.params.videoId) });
+router.post('/pipeline/process', async (req, res) => {
+  const { videoId, titulo, artista } = req.body;
+  if (!videoId || !titulo) return res.status(400).json({ error: 'videoId and titulo required' });
+  pipeline.processSong(videoId, titulo, artista || '').catch(console.error);
+  res.json({ ok: true });
+});
+
+router.get('/pipeline/status/:videoId', async (req, res) => {
+  const status = await pipeline.getStatus(req.params.videoId);
+  res.json({ status });
 });
 
 router.get('/pipeline/audio/:videoId', (req, res) => {
@@ -52,21 +60,26 @@ router.get('/pipeline/audio/:videoId', (req, res) => {
   if (!fs.existsSync(audioPath)) return res.status(404).json({ error: 'Not processed yet' });
 
   const stat = fs.statSync(audioPath);
+  if (stat.size === 0) return res.status(404).json({ error: 'Audio not ready' });
+
   const range = req.headers.range;
 
   if (range) {
     const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
-    const start = parseInt(startStr, 10);
+    const start = parseInt(startStr, 10) || 0;
     const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
+    if (start >= stat.size || end >= stat.size || start > end) {
+      return res.status(416).set('Content-Range', `bytes */${stat.size}`).end();
+    }
     res.writeHead(206, {
       'Content-Range': `bytes ${start}-${end}/${stat.size}`,
       'Accept-Ranges': 'bytes',
       'Content-Length': end - start + 1,
-      'Content-Type': 'audio/webm',
+      'Content-Type': 'audio/mpeg',
     });
     fs.createReadStream(audioPath, { start, end }).pipe(res);
   } else {
-    res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': 'audio/webm' });
+    res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': 'audio/mpeg' });
     fs.createReadStream(audioPath).pipe(res);
   }
 });

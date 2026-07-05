@@ -9,7 +9,7 @@ import VistaClienteDemo from './pages/VistaClienteDemo.jsx'
 import SalesPage from './pages/SalesPage.jsx'
 import VistaSuperAdmin from './pages/VistaSuperAdmin.jsx'
 import VistaCliente from './pages/VistaCliente.jsx'
-import Tv from './pages/TvDemo.jsx'
+import TvDemo from './pages/TvDemo.jsx'
 import KaraokeTV from './pages/Tv.jsx'
 import ResetPasswordPage from './pages/ResetPassword.jsx'
 import { Navigate } from 'react-router-dom';
@@ -22,8 +22,7 @@ function App() {
       <Routes>
         {/* 2. Añade esta ruta como la principal "/" */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/tv" element={<Tv />} />
-        <Route path="/bar-demo/tv" element={<Tv />} />
+        <Route path="/bar-demo/tv" element={<TvDemo />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/bar-demo" element={<VistaClienteDemo />} />
         <Route path="/:slug" element={<VistaCliente />} />

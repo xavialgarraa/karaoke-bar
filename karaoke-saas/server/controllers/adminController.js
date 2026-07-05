@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { getIo } = require('../services/socket');
 
 const getQueue = async (req, res) => {
     const { slug } = req.params;
@@ -38,9 +39,20 @@ const getBarInfo = async (req, res) => {
 
 // 2. ELIMINAR CANCIÓN (Papelera)
 const deleteFromQueue = async (req, res) => {
-    const { id } = req.params; 
+    const { id } = req.params;
     try {
+        // Get bar slug before deleting
+        const [petRows] = await pool.query(
+          "SELECT b.slug FROM peticiones p JOIN bars b ON p.bar_id = b.id WHERE p.id = ?",
+          [id]
+        );
         await pool.query("DELETE FROM peticiones WHERE id = ?", [id]);
+
+        if (petRows.length) {
+          const io = getIo();
+          if (io) io.to(petRows[0].slug).emit('cola_actualizada');
+        }
+
         res.json({ message: 'Canción eliminada correctamente' });
     } catch (error) {
         console.error(error);
@@ -68,7 +80,18 @@ const reorderQueue = async (req, res) => {
                 );
             }
 
-            await connection.commit(); 
+            await connection.commit();
+
+            // Emit after successful commit
+            const [petRows] = await pool.query(
+              "SELECT b.slug FROM peticiones p JOIN bars b ON p.bar_id = b.id WHERE p.id = ? LIMIT 1",
+              [items[0].id]
+            ).catch(() => [[]]);
+            if (petRows.length) {
+              const io = getIo();
+              if (io) io.to(petRows[0].slug).emit('cola_actualizada');
+            }
+
             res.json({ message: 'Orden actualizado' });
         } catch (err) {
             await connection.rollback(); 

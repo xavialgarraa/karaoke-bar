@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mic2, Search, User, Users, Camera, Plus, X, Home, RotateCcw, Music, CheckCircle, Clock, Smartphone, Shuffle, PartyPopper } from 'lucide-react';
+import { Search, User, Users, Camera, Plus, X, Home, RotateCcw, Music, CheckCircle, Clock, Smartphone, Shuffle, PartyPopper } from 'lucide-react';
+import vokaraLogo from '../assets/logo.png';
 import { io } from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_CLIENT_URL || "http://localhost:3001";
@@ -75,6 +76,9 @@ const AppContent = ({ slug, isSimulator }) => {
     miTicketRef.current = miTicket;
   }, [miTicket]);
 
+  // Track previous queue position to detect improvements and trigger vibration
+  const prevPositionRef = useRef(null); // null = no position yet (don't vibrate on first set)
+
   const fileInputRef = useRef(null);
 
   // localStorage key for this bar
@@ -86,10 +90,18 @@ const AppContent = ({ slug, isSimulator }) => {
           const res = await fetch(`${API_URL}/api/queue/${slug}`);
           const cola = await res.json();
 
+          const vibrate = (pattern) => {
+              try { navigator.vibrate?.(pattern); } catch {}
+          };
+
           if (cola.length === 0) {
-              // Cola vacía: si tengo ticket puede que sea mi turno o me eliminaron
               const currentTicket = miTicketRef.current;
               if (currentTicket) {
+                  // Cola vacía y tengo ticket: es mi turno
+                  if (prevPositionRef.current !== null && prevPositionRef.current !== 0) {
+                      vibrate([300, 100, 300, 100, 400]); // ¡es tu turno!
+                  }
+                  prevPositionRef.current = 0;
                   setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
               }
               return;
@@ -106,8 +118,16 @@ const AppContent = ({ slug, isSimulator }) => {
 
           if (idx === 0) {
               // Es el primero — ¡su turno!
+              if (prevPositionRef.current !== null && prevPositionRef.current !== 0) {
+                  vibrate([300, 100, 300, 100, 400]); // ¡es tu turno!
+              }
+              prevPositionRef.current = 0;
               setEstadoCola({ personasDelante: 0, tiempoEspera: 0, esMiTurno: true });
           } else {
+              if (prevPositionRef.current !== null && idx < prevPositionRef.current) {
+                  vibrate(120); // avanzaste en la cola
+              }
+              prevPositionRef.current = idx;
               setEstadoCola({
                   personasDelante: idx,
                   tiempoEspera: idx * 4,
@@ -171,14 +191,13 @@ const AppContent = ({ slug, isSimulator }) => {
         actualizarEstadoCola(data.cancion.id);
     });
 
-    // B. CAMBIO DE TURNO — read ticket from ref, not closure
-    socketRef.current.on('cambio_de_turno', () => {
-        console.log("🔄 La cola ha avanzado. Recalculando...");
+    // B. CAMBIO DE TURNO (canción terminó) o COLA ACTUALIZADA (admin reordenó/eliminó)
+    const recalcularPosicion = () => {
         const currentTicket = miTicketRef.current;
-        if (currentTicket && currentTicket.cancion && currentTicket.cancion.id) {
-            actualizarEstadoCola(currentTicket.cancion.id);
-        }
-    });
+        if (currentTicket?.cancion?.id) actualizarEstadoCola(currentTicket.cancion.id);
+    };
+    socketRef.current.on('cambio_de_turno', recalcularPosicion);
+    socketRef.current.on('cola_actualizada', recalcularPosicion);
 
     socketRef.current.on('error_peticion', (msg) => { alert(msg); setBuscando(false); });
 
@@ -251,8 +270,8 @@ const AppContent = ({ slug, isSimulator }) => {
   };
 
   const resetear = () => {
-    // FIX Bug 3: clear localStorage on reset
     localStorage.removeItem(sessionKey);
+    prevPositionRef.current = null;
     setEnviado(false); setBusqueda(''); setMiTicket(null); miTicketRef.current = null;
     setResultados([]); setEstadoCola({ personasDelante:0, tiempoEspera:0, esMiTurno:false });
   };
@@ -266,8 +285,8 @@ const AppContent = ({ slug, isSimulator }) => {
       {/* Header */}
       <nav style={styles.nav}>
         <div style={styles.logo} onClick={() => step === 2 && setStep(1)}>
-            <Mic2 size={20} color="#00f2ff" />
-            <span>Vo<span style={{ color: "#00f2ff" }}>kara</span></span>
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '26px', width: '26px', borderRadius: '50%', objectFit: 'cover' }} />
+            <span>Vokara</span>
         </div>
         <div style={styles.barBadge}>{slug.toUpperCase()}</div>
       </nav>

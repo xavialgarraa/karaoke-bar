@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic2, Smartphone, Tv, Zap, Shield, TrendingUp, Check, Star, Play, ArrowRight, ChevronDown, ChevronUp, Users, Music } from 'lucide-react';
+import { Smartphone, Tv, Zap, Shield, TrendingUp, Check, Star, Play, ArrowRight, ChevronDown, ChevronUp, Users, Music } from 'lucide-react';
+import vokaraLogo from '../assets/logo.png';
 
 const KaraokeLanding = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -29,10 +30,8 @@ const KaraokeLanding = () => {
       <nav style={{...styles.nav, ...(scrolled ? styles.navScrolled : {})}}>
         <div style={styles.navInner}>
           <div style={styles.logoContainer} onClick={() => window.scrollTo(0,0)}>
-            <Mic2 style={styles.logoIcon} />
-            <span style={styles.logoText}>
-              Vo<span style={styles.logoCyan}>kara</span>
-            </span>
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '32px', width: '32px', borderRadius: '50%', objectFit: 'cover' }} />
+            <span style={styles.logoText}>Vokara</span>
           </div>
           <button style={styles.navButton} onClick={() => navigate('/login')}>
             Acceso Administradores
@@ -222,7 +221,7 @@ const KaraokeLanding = () => {
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
           <div style={styles.footerLogo}>
-            <Mic2 style={styles.footerIcon} />
+            <img src={vokaraLogo} alt="Vokara" style={{ height: '22px', width: '22px', borderRadius: '50%', objectFit: 'cover' }} />
             <span style={styles.footerBrand}>Vokara</span>
           </div>
           <div style={styles.footerCopy}>© 2026 Vokara · Todos los derechos reservados</div>

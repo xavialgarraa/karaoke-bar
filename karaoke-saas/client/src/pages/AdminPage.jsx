@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Reorder, AnimatePresence, motion } from 'framer-motion';
+import vokaraLogo from '../assets/logo.png';
 import {
   Mic2, Trash2, GripVertical, Tv, ExternalLink,
   Settings, MapPin, Power, LogOut, X, Edit2, Copy, Cast, Printer, QrCode, Loader2,
@@ -236,40 +237,42 @@ const AdminDashboard = () => {
       {/* --- HEADER --- */}
       <nav style={styles.nav}>
         <div style={styles.logoSection}>
-          <Mic2 color="#00f2ff" /> 
-          <span style={{fontWeight:'bold'}}>Vo<span style={{color:'#00f2ff'}}>kara</span></span>
+          <img src={vokaraLogo} alt="Vokara" style={{ height: isMobile ? '24px' : '30px', width: isMobile ? '24px' : '30px', borderRadius: '50%', objectFit: 'cover' }} />
+          <span style={{fontWeight:'bold', fontSize: isMobile ? '16px' : '20px', color: '#fff'}}>Vokara</span>
         </div>
 
         {/* SWITCH BLOQUEO */}
         <div style={styles.centerControl}>
-            <span style={{fontSize:'12px', color: isSocketActive ? '#00f2ff' : '#ff4d4d', fontWeight:'bold'}}>
-                {isSocketActive ? 'SISTEMA ONLINE' : 'SISTEMA BLOQUEADO'}
-            </span>
-            <div 
-                style={{...styles.switchTrack, background: isSocketActive ? 'rgba(0,242,255,0.2)' : '#330000', borderColor: isSocketActive ? 'rgba(0,242,255,0.3)' : '#ff4d4d'}} 
+            {!isMobile && (
+              <span style={{fontSize:'12px', color: isSocketActive ? '#00f2ff' : '#ff4d4d', fontWeight:'bold'}}>
+                  {isSocketActive ? 'SISTEMA ONLINE' : 'BLOQUEADO'}
+              </span>
+            )}
+            <div
+                style={{...styles.switchTrack, background: isSocketActive ? 'rgba(0,242,255,0.2)' : '#330000', borderColor: isSocketActive ? 'rgba(0,242,255,0.3)' : '#ff4d4d'}}
                 onClick={toggleSystemLock}
             >
-                <motion.div 
-                    layout transition={spring} 
+                <motion.div
+                    layout transition={spring}
                     style={{
-                        ...styles.switchThumb, 
+                        ...styles.switchThumb,
                         background: isSocketActive ? '#00f2ff' : '#ff4d4d',
                         x: isSocketActive ? 20 : 0
-                    }} 
+                    }}
                 />
             </div>
         </div>
 
         <div style={{position:'relative'}}>
             <div style={styles.userBadge} onClick={() => setShowUserMenu(!showUserMenu)}>
-              <div style={{...styles.statusDot, background: isSocketActive ? '#00f2ff' : 'red'}}></div> 
-              Admin
+              <div style={{...styles.statusDot, background: isSocketActive ? '#00f2ff' : 'red'}}></div>
+              {!isMobile && 'Admin'}
               <img src={`https://ui-avatars.com/api/?name=${barData.nombre}&background=000&color=fff`} alt="admin" style={styles.headerAvatar} />
             </div>
 
             <AnimatePresence>
                 {showUserMenu && (
-                    <motion.div 
+                    <motion.div
                         initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} exit={{opacity:0, y:10}}
                         style={styles.dropdownMenu}
                     >
@@ -282,20 +285,20 @@ const AdminDashboard = () => {
         </div>
       </nav>
 
-      {/* --- GRID PRINCIPAL --- */}
-      <div style={styles.mainGrid}>
-        
-        {/* COLUMNA IZQUIERDA: COLA */}
-        <div style={{...styles.queueSection, opacity: isSocketActive ? 1 : 0.6, filter: isSocketActive ? 'none' : 'grayscale(0.8)', transition: 'all 0.3s'}}>
-          <div style={styles.sectionHeader}>
+      {/* --- LAYOUT PRINCIPAL --- */}
+      <div style={{...styles.mainGrid, flexDirection: isMobile ? 'column' : 'row', height: isMobile ? 'auto' : 'calc(100vh - 70px)', padding: isMobile ? '16px' : '30px', gap: isMobile ? '16px' : '30px'}}>
+
+        {/* COLA — ocupa todo el ancho en móvil */}
+        <div style={{...styles.queueSection, opacity: isSocketActive ? 1 : 0.6, filter: isSocketActive ? 'none' : 'grayscale(0.8)', transition: 'all 0.3s', flex: isMobile ? 'none' : 2, height: isMobile ? 'auto' : undefined}}>
+          <div style={{...styles.sectionHeader, padding: isMobile ? '16px' : '25px'}}>
             <div>
-                <h2 style={styles.sectionTitle}>Cola de reproducción ({queue.length})</h2>
-                <span style={styles.hint}>{isMobile ? 'Usa ↑↓ para reordenar' : 'Arrastra para reordenar'}</span>
+                <h2 style={{...styles.sectionTitle, fontSize: isMobile ? '17px' : '20px'}}>Cola ({queue.length})</h2>
+                <span style={styles.hint}>{isMobile ? 'Pulsa ↑↓ para reordenar' : 'Arrastra para reordenar'}</span>
             </div>
-            {!isSocketActive && <span style={styles.offlineBadge}>SISTEMA CERRADO</span>}
+            {!isSocketActive && <span style={styles.offlineBadge}>CERRADO</span>}
           </div>
 
-          <div style={styles.listContainer}>
+          <div style={{...styles.listContainer, padding: isMobile ? '12px' : '20px', overflowY: isMobile ? 'visible' : 'auto', WebkitOverflowScrolling: 'touch'}}>
             {isLoading ? (
                 <div style={styles.emptyState}><Loader2 className="animate-spin"/> Cargando...</div>
             ) : queue.length === 0 ? (
@@ -303,31 +306,45 @@ const AdminDashboard = () => {
                     <p>No hay canciones en cola</p>
                     <p style={{fontSize:'12px', color:'#666'}}>El sistema está listo para recibir solicitudes.</p>
                 </div>
+            ) : isMobile ? (
+                // MÓVIL: lista simple sin drag, con botones ↑↓ grandes
+                <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+                  {queue.map((item, idx) => (
+                    <div key={item.id} style={styles.songCardMobile}>
+                      <div style={styles.mobileOrderBtns}>
+                        <button onClick={() => moveItem(idx, -1)} style={{...styles.orderBtn, opacity: idx === 0 ? 0.3 : 1}} disabled={idx === 0}><ChevronUp size={18} /></button>
+                        <span style={{fontSize:'12px', color:'#555', fontWeight:'bold'}}>{idx+1}</span>
+                        <button onClick={() => moveItem(idx, 1)} style={{...styles.orderBtn, opacity: idx === queue.length-1 ? 0.3 : 1}} disabled={idx === queue.length-1}><ChevronDown size={18} /></button>
+                      </div>
+                      <div style={styles.songInfo}>
+                        <div style={{...styles.songTitle, fontSize:'15px'}}>{item.titulo}</div>
+                        <div style={{...styles.songArtist, fontSize:'12px'}}>{item.artista}</div>
+                        <div style={{fontSize:'11px', color:'#00f2ff', marginTop:'2px', display:'flex', alignItems:'center', gap:'4px'}}>
+                          <Mic2 size={10} /> {item.usuario}
+                        </div>
+                      </div>
+                      <button onClick={() => removeSong(item.id)} style={styles.deleteBtnMobile} title="Eliminar">
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
             ) : (
+                // DESKTOP: drag & drop
                 <Reorder.Group axis="y" values={queue} onReorder={saveReorder} style={{ listStyle: 'none', padding: 0 }}>
                 <AnimatePresence>
                     {queue.map((item, idx) => (
                     <Reorder.Item key={item.id} value={item} style={styles.itemWrapper} whileDrag={{ scale: 1.02, boxShadow: "0 5px 15px rgba(0,0,0,0.5)" }}>
                         <div style={styles.songCard}>
-                        {isMobile ? (
-                            <div style={styles.mobileOrderBtns}>
-                                <button onClick={() => moveItem(idx, -1)} style={styles.orderBtn} disabled={idx === 0}><ChevronUp size={16} /></button>
-                                <button onClick={() => moveItem(idx, 1)} style={styles.orderBtn} disabled={idx === queue.length - 1}><ChevronDown size={16} /></button>
-                            </div>
-                        ) : (
-                            <div style={styles.dragHandle}><GripVertical size={20} color="#666" /></div>
-                        )}
-
+                        <div style={styles.dragHandle}><GripVertical size={20} color="#666" /></div>
                         <div style={styles.songInfo}>
                             <div style={styles.songTitle}>{item.titulo}</div>
                             <div style={styles.songArtist}>{item.artista}</div>
                         </div>
-
                         <div style={styles.userInfo}>
-                            <img src={item.avatar} alt="u" style={styles.avatar} />
+                            <img src={item.avatar} alt="u" style={styles.avatar} onError={e => { e.target.src = `https://ui-avatars.com/api/?name=${item.usuario}&background=random`; }} />
                             <span>{item.usuario}</span>
                         </div>
-
                         <button onClick={() => removeSong(item.id)} style={styles.deleteBtn} title="Eliminar">
                             <Trash2 size={18} />
                         </button>
@@ -340,9 +357,28 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA */}
-        <div style={styles.rightColumn}>
-            
+        {/* COLUMNA DERECHA / CARDS EN MÓVIL */}
+        <div style={{...styles.rightColumn, flex: isMobile ? 'none' : 1, flexDirection: isMobile ? 'column' : 'column', gap: isMobile ? '12px' : '20px'}}>
+
+            {/* TV CONTROL — primero en móvil porque es lo más importante */}
+            <div style={styles.tvControlCard}>
+                <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'15px'}}>
+                    <Tv size={22} color="#fff" />
+                    <h3 style={{fontSize:'16px', fontWeight:'bold', margin:0}}>Pantalla TV</h3>
+                </div>
+                <div style={styles.tvActionsGrid}>
+                    <button onClick={() => window.open(`${window.location.origin}/tv/${barData.slug}?t=${token}`, '_blank')} style={styles.tvBtnPrimary}>
+                        <ExternalLink size={16} /> ABRIR TV
+                    </button>
+                    <button onClick={copyTvLink} style={styles.tvBtnSecondary}>
+                        <Copy size={16} /> URL
+                    </button>
+                    <button onClick={() => alert("Próximamente")} style={styles.tvBtnSecondary}>
+                        <Cast size={16} /> CAST
+                    </button>
+                </div>
+            </div>
+
             {/* DATOS */}
             <div style={styles.clientCard}>
                 <div style={styles.cardHeaderSmall}>
@@ -351,11 +387,10 @@ const AdminDashboard = () => {
                     </span>
                     <button onClick={() => setShowEditModal(true)} style={styles.iconBtn}><Edit2 size={14} /></button>
                 </div>
-                
                 <div style={styles.dataRow}>
                     <div style={styles.barAvatar}>{barData.nombre ? barData.nombre[0] : 'B'}</div>
                     <div style={{flex:1}}>
-                        <div style={{fontWeight:'bold', fontSize:'18px'}}>{barData.nombre}</div>
+                        <div style={{fontWeight:'bold', fontSize:'16px'}}>{barData.nombre}</div>
                         <div style={{fontSize:'12px', color:'#888', display:'flex', alignItems:'center', gap:'4px'}}>
                             <MapPin size={10} /> {barData.ubicacion || 'Sin ubicación'}
                         </div>
@@ -376,32 +411,11 @@ const AdminDashboard = () => {
                         <img src={qrImageUrl} alt="QR" style={{width: '60px', height: '60px', display: 'block'}} />
                     </div>
                     <div style={{flex: 1}}>
-                        <p style={{fontSize: '12px', color: '#aaa', marginBottom: '8px'}}>
-                            Escanea para solicitar canciones.
-                        </p>
+                        <p style={{fontSize: '12px', color: '#aaa', marginBottom: '8px'}}>Escanea para solicitar canciones.</p>
                         <button onClick={handlePrintQR} style={styles.printBtn}>
                             <Printer size={14} /> IMPRIMIR
                         </button>
                     </div>
-                </div>
-            </div>
-
-            {/* TV CONTROL */}
-            <div style={styles.tvControlCard}>
-                <div style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'15px'}}>
-                    <Tv size={24} color="#fff" />
-                    <h3 style={{fontSize:'16px', fontWeight:'bold', margin:0}}>Pantalla TV</h3>
-                </div>
-                <div style={styles.tvActionsGrid}>
-                    <button onClick={() => window.open(`${window.location.origin}/tv/${barData.slug}?t=${token}`, '_blank')} style={styles.tvBtnPrimary}>
-                        <ExternalLink size={16} /> ABRIR TV
-                    </button>
-                    <button onClick={copyTvLink} style={styles.tvBtnSecondary}>
-                        <Copy size={16} /> URL
-                    </button>
-                    <button onClick={() => alert("Próximamente")} style={styles.tvBtnSecondary}>
-                        <Cast size={16} /> CAST
-                    </button>
                 </div>
             </div>
 
@@ -508,8 +522,10 @@ const styles = {
   modalFooter: { display: 'flex', gap: '10px', marginTop: '20px' },
   saveBtn: { flex: 1, background: '#00f2ff', color: '#000', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
   cancelBtn: { flex: 1, background: 'transparent', color: '#fff', border: '1px solid #333', padding: '12px', borderRadius: '10px', cursor: 'pointer' },
-  mobileOrderBtns: { display: 'flex', flexDirection: 'column', gap: '2px', flexShrink: 0 },
-  orderBtn: { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#aaa', borderRadius: '6px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, transition: 'background 0.15s' }
+  mobileOrderBtns: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 },
+  orderBtn: { background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', color: '#aaa', borderRadius: '8px', width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, transition: 'background 0.15s' },
+  songCardMobile: { display: 'flex', alignItems: 'center', gap: '12px', background: '#141414', padding: '14px', borderRadius: '16px', border: '1px solid #2a2a2a' },
+  deleteBtnMobile: { background: 'rgba(255,77,77,0.12)', border: 'none', color: '#ff4d4d', cursor: 'pointer', padding: '12px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 };
 
 export default AdminDashboard;
