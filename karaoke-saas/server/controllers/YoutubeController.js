@@ -25,42 +25,106 @@ function youtubeSearch(query, apiKey) {
     });
 }
 
-function parseTitle(titulo) {
-    let track = titulo;
-    if (titulo.includes(' - ')) {
-        track = titulo.split(' - ').slice(1).join(' - ');
-    }
-    return track
+function cleanText(s) {
+    return (s || '')
         .replace(/\(.*?\)/g, '')
         .replace(/\[.*?\]/g, '')
         .replace(/\|.*$/g, '')
-        .replace(/\b(karaoke|letra|lyrics|instrumental|version|official|ft\.|feat\.)\b/gi, '')
+        .replace(/\b(karaoke|letra|lyrics|instrumental|version|official|video oficial|ft\.|feat\.)\b/gi, '')
         .replace(/\s+/g, ' ')
         .trim();
 }
 
 function parseArtist(canal) {
     return (canal || '')
-        .replace(/\b(vevo|official|music|records|entertainment)\b/gi, '')
+        // Word-boundary removals (spaced words)
+        .replace(/\b(vevo|official|oficial|music|records|entertainment|canal|tv)\b/gi, '')
+        // Suffix removals without boundary (camelCase: "QuevedoOficial", "ArtistVEVO")
+        .replace(/(vevo|official|oficial|music|records)$/i, '')
         .replace(/\s+/g, ' ')
         .trim();
 }
 
-function lrcSearch(track, artist) {
+// Returns all plausible track name candidates from a YouTube title
+// YouTube titles can be "Artist - Song" OR "Song - Artist" — we try both halves
+function getTrackCandidates(titulo) {
+    const full = cleanText(titulo);
+    if (!full.includes(' - ')) return [full];
+    const parts = full.split(' - ').map(p => p.trim()).filter(Boolean);
+    // [after dash, before dash, full cleaned] — avoids losing the real track name
+    return [...new Set([parts.slice(1).join(' - '), parts[0], full])];
+}
+
+const norm = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+// Title similarity: substring OR word overlap
+function titleMatches(lrcTitle, searchedTrack) {
+    const na = norm(searchedTrack);
+    const nb = norm(lrcTitle || '');
+    if (!na || !nb) return false;
+    if (na.includes(nb) || nb.includes(na)) return true;
+    const words = s => s.split(/\s+/).filter(w => w.length > 2);
+    const wa = words(na);
+    const wb = new Set(words(nb));
+    if (wa.length === 0) return false;
+    return wa.filter(w => wb.has(w)).length >= Math.ceil(wa.length * 0.5);
+}
+
+// Artist similarity: at least one expected artist overlaps with the LRCLib result artist.
+// If no expected artists, skip check (avoid rejecting valid matches when artist is unknown).
+function artistMatches(lrcArtist, expectedArtists) {
+    if (!expectedArtists || expectedArtists.length === 0) return true;
+    const nb = norm(lrcArtist || '');
+    if (!nb) return false;
+    return expectedArtists.some(a => {
+        const na = norm(a);
+        return na && (na.includes(nb) || nb.includes(na));
+    });
+}
+
+// Fetch durations for multiple video IDs in one call (costs 1 quota unit total)
+function getVideoDurations(videoIds, apiKey) {
+    const params = new URLSearchParams({ part: 'contentDetails', id: videoIds.join(','), key: apiKey });
+    return new Promise((resolve) => {
+        https.get(`https://www.googleapis.com/youtube/v3/videos?${params}`, (res) => {
+            let raw = '';
+            res.on('data', c => raw += c);
+            res.on('end', () => {
+                try {
+                    const map = {};
+                    (JSON.parse(raw).items || []).forEach(item => {
+                        const m = item.contentDetails.duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+                        map[item.id] = (parseInt(m[1] || 0) * 3600) + (parseInt(m[2] || 0) * 60) + parseInt(m[3] || 0);
+                    });
+                    resolve(map);
+                } catch { resolve({}); }
+            });
+        }).on('error', () => resolve({}));
+    });
+}
+
+// /api/get requires album_name which we don't have — use SEARCH and filter by title+artist+duration
+function lrcSearch(track, artist, expectedArtists, duration) {
     const p = { track_name: track };
     if (artist) p.artist_name = artist;
-    const params = new URLSearchParams(p);
     return new Promise((resolve) => {
         https.get(
-            `https://lrclib.net/api/search?${params}`,
+            `https://lrclib.net/api/search?${new URLSearchParams(p)}`,
             { headers: { 'User-Agent': 'KaraokeSaas/1.0' } },
             (res) => {
                 let raw = '';
-                res.on('data', (c) => (raw += c));
+                res.on('data', c => raw += c);
                 res.on('end', () => {
                     try {
                         const results = JSON.parse(raw);
-                        resolve(Array.isArray(results) && results.some(r => r.syncedLyrics));
+                        if (!Array.isArray(results)) return resolve(false);
+                        const hit = results.find(r =>
+                            r.syncedLyrics &&
+                            titleMatches(r.trackName, track) &&
+                            artistMatches(r.artistName, expectedArtists) &&
+                            (!duration || Math.abs((r.duration || 0) - duration) <= 5)
+                        );
+                        resolve(!!hit);
                     } catch { resolve(false); }
                 });
             }
@@ -68,24 +132,35 @@ function lrcSearch(track, artist) {
     });
 }
 
-async function checkLrcLib(titulo, canal) {
-    const track = parseTitle(titulo);
-    const channelArtist = parseArtist(canal);
+async function checkLrcLib(titulo, canal, duration, originalQuery) {
+    const tracks = getTrackCandidates(titulo);
+    if (originalQuery) tracks.push(originalQuery.trim());
+    const uniqueTracks = [...new Set(tracks)];
 
-    // Also try artist extracted from "Artist - Title" YouTube title format
-    let titleArtist = '';
-    if (titulo.includes(' - ')) {
-        titleArtist = parseArtist(titulo.split(' - ')[0]);
+    const channelArtist = parseArtist(canal);
+    // Both halves of the title can be artist or song — include all as potential artists
+    const titleParts = titulo.includes(' - ')
+        ? cleanText(titulo).split(' - ').map(p => parseArtist(p)).filter(Boolean)
+        : [];
+    const artists = [...new Set([channelArtist, ...titleParts].filter(Boolean)), ''];
+
+    const knownArtists = artists.filter(Boolean);
+    // Only drop candidates that exactly equal the channel artist (reliable artist indicator)
+    const channelArtistNorm = norm(channelArtist);
+    const filteredTracks = channelArtistNorm
+        ? uniqueTracks.filter(t => norm(t) !== channelArtistNorm)
+        : uniqueTracks;
+    console.log(`  🔍 LRC: tracks=${JSON.stringify(filteredTracks)} artists=${JSON.stringify(artists)} duration=${duration}s`);
+
+    // 1. SEARCH with duration filter (±5s) — title + artist + duration must all match
+    if (duration) {
+        const exactChecks = filteredTracks.flatMap(t => artists.map(a => lrcSearch(t, a, knownArtists, duration)));
+        if ((await Promise.all(exactChecks)).some(Boolean)) return true;
     }
 
-    // Try 3 combos in parallel — return true if any finds synced lyrics
-    const combos = [
-        lrcSearch(track, channelArtist),
-        titleArtist && titleArtist !== channelArtist ? lrcSearch(track, titleArtist) : Promise.resolve(false),
-        lrcSearch(track, ''), // no artist — broadest net
-    ];
-    const results = await Promise.all(combos);
-    return results.some(Boolean);
+    // 2. SEARCH without duration — title + artist only
+    const searchChecks = filteredTracks.flatMap(t => artists.map(a => lrcSearch(t, a, knownArtists, null)));
+    return (await Promise.all(searchChecks)).some(Boolean);
 }
 
 const searchVideos = async (req, res) => {
@@ -113,13 +188,15 @@ const searchVideos = async (req, res) => {
                 `UPDATE catalogo_canciones SET veces_cantada_global = veces_cantada_global + 1 WHERE id = ?`,
                 [rows[0].id]
             );
-            return res.json(rows.map(row => ({
-                id: row.video_id,
-                titulo: row.titulo,
+            // Return only the best cached result
+            const best = rows[0];
+            return res.json([{
+                id: best.video_id,
+                titulo: best.titulo,
                 descripcion: "⭐ Disponible en el local (Carga rápida)",
-                imagen: row.cover_url,
-                canal: row.artista || "Karaoke Local"
-            })));
+                imagen: best.cover_url,
+                canal: best.artista || "Karaoke Local"
+            }]);
         }
 
         // 2. Buscar en YouTube
@@ -147,16 +224,30 @@ const searchVideos = async (req, res) => {
         };
         videosAPI.sort((a, b) => officialScore(b) - officialScore(a));
 
-        // 3. Filtrar por disponibilidad en LRCLib (en paralelo)
-        console.log("🎵 Verificando letras en LRCLib...");
-        const checks = await Promise.all(videosAPI.map(v => checkLrcLib(v.titulo, v.canal)));
-        const resultado = videosAPI.filter((_, i) => checks[i]);
+        // 3. Obtener duraciones (1 unidad de cuota para todos)
+        const top8 = videosAPI.slice(0, 8);
+        const durations = await getVideoDurations(top8.map(v => v.id), apiKey);
+        console.log(`⏱️  Duraciones: ${top8.map(v => `${v.id}=${durations[v.id]}s`).join(', ')}`);
 
-        console.log(`✅ ${resultado.length}/${videosAPI.length} tienen letras sincronizadas`);
+        // 4. Buscar el primer resultado con letras confirmadas en LRCLib (GET+duration → SEARCH)
+        console.log("🎵 Buscando mejor resultado con letras en LRCLib...");
+        let mejor = null;
+        for (const video of top8) {
+            const hasLyrics = await checkLrcLib(video.titulo, video.canal, durations[video.id], query);
+            if (hasLyrics) { mejor = video; break; }
+        }
 
-        if (resultado.length > 0) guardarResultadosEnBD(resultado.slice(0, 3));
+        // Si ninguno tiene letras confirmadas, devolver el más oficial de todas formas
+        // (el pipeline intentará buscar letras con más estrategias al descargar)
+        if (!mejor) {
+            mejor = top8[0];
+            console.log(`⚠️ Sin letras confirmadas, devolviendo mejor candidato: "${mejor.titulo}"`);
+        } else {
+            console.log(`✅ Mejor resultado: "${mejor.titulo}" (${mejor.canal})`);
+        }
 
-        res.json(resultado);
+        guardarResultadosEnBD([mejor]);
+        res.json([mejor]);
 
     } catch (error) {
         console.error('❌ Error:', error.message);

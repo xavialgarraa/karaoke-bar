@@ -194,10 +194,10 @@ function removeVocals(dir) {
 
 // ─── LETRAS (LRCLib) ───────────────────────────────────────────────────────
 
-function cleanTrack(titulo) {
-  let track = titulo;
-  if (titulo.includes(' - ')) track = titulo.split(' - ').slice(1).join(' - ');
-  return track
+const normTrack = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+function stripNoise(s) {
+  return (s || '')
     .replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').replace(/\|.*$/g, '')
     .replace(/\b(karaoke|letra|lyrics|instrumental|version|official|video oficial|ft\.|feat\.)\b/gi, '')
     .replace(/\s+/g, ' ').trim();
@@ -205,47 +205,78 @@ function cleanTrack(titulo) {
 
 function cleanArtist(name) {
   return (name || '')
-    .replace(/\b(vevo|official|music|records|entertainment)\b/gi, '')
+    .replace(/\b(vevo|official|oficial|music|records|entertainment)\b/gi, '')
+    .replace(/(vevo|official|oficial|music|records)$/i, '')
     .replace(/\s+/g, ' ').trim();
+}
+
+// Returns all plausible track name candidates (both halves of "A - B"), excluding the channel artist
+function getTrackCandidates(titulo, channelArtist) {
+  const full = stripNoise(titulo);
+  const chNorm = normTrack(cleanArtist(channelArtist));
+  if (!full.includes(' - ')) return [full];
+  const parts = full.split(' - ').map(p => p.trim()).filter(Boolean);
+  const candidates = [...new Set([parts.slice(1).join(' - '), parts[0], full])];
+  // Drop any candidate that is just the artist name
+  return candidates.filter(t => !chNorm || normTrack(t) !== chNorm);
+}
+
+function titleMatches(lrcTitle, searchedTrack) {
+  const na = normTrack(searchedTrack);
+  const nb = normTrack(lrcTitle || '');
+  if (!na || !nb) return false;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const words = s => s.split(/\s+/).filter(w => w.length > 2);
+  const wa = words(na);
+  const wb = new Set(words(nb));
+  if (wa.length === 0) return false;
+  return wa.filter(w => wb.has(w)).length >= Math.ceil(wa.length * 0.5);
 }
 
 async function fetchLyrics(titulo, artista, duration, dir) {
   const out = path.join(dir, 'lyrics.lrc');
   if (fs.existsSync(out)) return true;
 
-  const track = cleanTrack(titulo);
   const channelArtist = cleanArtist(artista);
+  // Both halves of the title can be artist or song — include all as potential artists
+  const titleParts = titulo.includes(' - ')
+    ? stripNoise(titulo).split(' - ').map(p => cleanArtist(p)).filter(Boolean)
+    : [];
+  const artists = [...new Set([channelArtist, ...titleParts].filter(Boolean)), ''];
+  const knownArtists = artists.filter(Boolean);
 
-  // Also extract artist from "Artist - Title" YouTube title format
-  const titleArtist = titulo.includes(' - ') ? cleanArtist(titulo.split(' - ')[0]) : '';
+  const tracks = getTrackCandidates(titulo, artista);
 
-  console.log(`🎵 LRCLib → track: "${track}" | channel: "${channelArtist}" | title artist: "${titleArtist}" | ${duration}s`);
-
-  // Unique artist candidates, preserving priority order
-  const artists = [...new Set([channelArtist, titleArtist, ''])];
+  console.log(`🎵 LRCLib → tracks: ${JSON.stringify(tracks)} | artists: ${JSON.stringify(artists)} | ${duration}s`);
 
   try {
-    // 1. GET with duration (exact match) — try all artist candidates
-    for (const artist of artists) {
-      const lrc = await getLyricsByGet(track, artist, duration);
-      if (lrc) {
-        fs.writeFileSync(out, lrc, 'utf8');
-        console.log(`✅ Letras (GET+duration) con artist="${artist}"`);
-        return true;
+    // 1. SEARCH with duration filter (±5s) — most precise
+    if (duration) {
+      for (const track of tracks) {
+        for (const artist of artists) {
+          const lrc = await getLyricsBySearch(track, artist, knownArtists, duration);
+          if (lrc) {
+            fs.writeFileSync(out, lrc, 'utf8');
+            console.log(`✅ Letras (SEARCH+duration) track="${track}" artist="${artist}"`);
+            return true;
+          }
+        }
       }
     }
 
-    // 2. SEARCH fallback (no duration — picks any synced version)
-    for (const artist of artists) {
-      const lrc = await getLyricsBySearch(track, artist);
-      if (lrc) {
-        fs.writeFileSync(out, lrc, 'utf8');
-        console.log(`✅ Letras (SEARCH) con artist="${artist}"`);
-        return true;
+    // 2. SEARCH without duration — title + artist match only
+    for (const track of tracks) {
+      for (const artist of artists) {
+        const lrc = await getLyricsBySearch(track, artist, knownArtists, null);
+        if (lrc) {
+          fs.writeFileSync(out, lrc, 'utf8');
+          console.log(`✅ Letras (SEARCH) track="${track}" artist="${artist}"`);
+          return true;
+        }
       }
     }
 
-    console.warn(`⚠️  Sin letras: "${track}"`);
+    console.warn(`⚠️  Sin letras: "${titulo}"`);
     return false;
   } catch {
     return false;
@@ -266,22 +297,27 @@ function lrclibRequest(urlPath) {
   });
 }
 
-async function getLyricsByGet(track, artist, duration) {
-  const p = { track_name: track };
-  if (artist) p.artist_name = artist;
-  if (duration) p.duration = duration;
-  const r = await lrclibRequest(`/api/get?${new URLSearchParams(p)}`);
-  if (!r || r.status !== 200) return null;
-  try { return JSON.parse(r.raw).syncedLyrics || null; } catch { return null; }
-}
-
-async function getLyricsBySearch(track, artist) {
+// /api/get requires album_name (which we don't have) — use SEARCH and filter client-side
+async function getLyricsBySearch(track, artist, expectedArtists, duration) {
   const p = { track_name: track };
   if (artist) p.artist_name = artist;
   const r = await lrclibRequest(`/api/search?${new URLSearchParams(p)}`);
   if (!r || r.status !== 200) return null;
   try {
-    const hit = JSON.parse(r.raw).find((x) => x.syncedLyrics);
+    const results = JSON.parse(r.raw);
+    if (!Array.isArray(results)) return null;
+    const artistOk = (a) => {
+      if (!expectedArtists || expectedArtists.length === 0) return true;
+      const nb = normTrack(a || '');
+      if (!nb) return false;
+      return expectedArtists.some(ea => { const na = normTrack(ea); return na && (na.includes(nb) || nb.includes(na)); });
+    };
+    const hit = results.find(x =>
+      x.syncedLyrics &&
+      titleMatches(x.trackName, track) &&
+      artistOk(x.artistName) &&
+      (!duration || Math.abs((x.duration || 0) - duration) <= 5)
+    );
     return hit?.syncedLyrics || null;
   } catch { return null; }
 }
