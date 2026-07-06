@@ -8,6 +8,11 @@ const pool  = require('../config/db');
 const PROCESSED_DIR = path.join(__dirname, '../processed');
 const statusMap = new Map(); // videoId -> 'processing' | 'error'
 
+const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+function assertVideoId(videoId) {
+  if (!VIDEO_ID_RE.test(videoId)) throw new Error(`Invalid videoId: ${videoId}`);
+}
+
 // ─── STATUS ────────────────────────────────────────────────────────────────
 
 async function getStatus(videoId) {
@@ -37,6 +42,7 @@ async function getStatus(videoId) {
 // ─── PROCESO PRINCIPAL ─────────────────────────────────────────────────────
 
 async function processSong(videoId, titulo, artista) {
+  assertVideoId(videoId);
   const status = await getStatus(videoId);
   if (status === 'ready' || status === 'processing') return;
 

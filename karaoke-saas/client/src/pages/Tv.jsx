@@ -360,15 +360,16 @@ const KaraokeTV = () => {
     setPipelineStatus('not_found');
     setLyrics([]);
     setCurrentLyricIdx(-1);
+    const authHeaders = tvToken ? { Authorization: `Bearer ${tvToken}` } : {};
     let alive = true;
     const check = async () => {
       try {
-        const r = await fetch(`${API_URL}/api/pipeline/status/${videoId}`);
+        const r = await fetch(`${API_URL}/api/pipeline/status/${videoId}`, { headers: authHeaders });
         const { status } = await r.json();
         if (!alive) return;
         setPipelineStatus(status);
         if (status === 'ready') {
-          const lr = await fetch(`${API_URL}/api/pipeline/lyrics/${videoId}`);
+          const lr = await fetch(`${API_URL}/api/pipeline/lyrics/${videoId}`, { headers: authHeaders });
           if (lr.ok) setLyrics(parseLRC(await lr.text()));
           clearInterval(poll);
         }
@@ -503,7 +504,7 @@ const KaraokeTV = () => {
       {/* Audio element — src set only when pipeline ready to avoid premature 404 */}
       <audio
         ref={audioRef}
-        src={videoId && pipelineStatus === 'ready' ? `${API_URL}/api/pipeline/audio/${videoId}` : undefined}
+        src={videoId && pipelineStatus === 'ready' ? `${API_URL}/api/pipeline/audio/${videoId}?t=${tvToken}` : undefined}
         onEnded={handleVideoEnd}
         preload="auto"
         style={{ display: 'none' }}

@@ -2,9 +2,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const pool = require('../config/db'); // MySQL Pool
 const jwt = require('jsonwebtoken');
-require('dotenv').config(); 
+require('dotenv').config();
 
 const apiRoutes = require('../routes/api');
 const pipeline = require('../services/pipeline');
@@ -12,8 +14,22 @@ const pipeline = require('../services/pipeline');
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = process.env.CLIENT_URL
+    ? [process.env.CLIENT_URL, 'http://localhost:5173']
+    : ['http://localhost:5173'];
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json({ limit: '50kb' }));
+
+// Global rate limit: 200 req/min per IP (protects all endpoints)
+app.use(rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { message: 'Demasiadas peticiones, intenta más tarde.' },
+}));
 
 app.use('/api', apiRoutes);
 
@@ -22,7 +38,7 @@ app.get('/', (req, res) => {
 });
 
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true }
 });
 
 require('../services/socket').setIo(io);
@@ -150,7 +166,19 @@ io.on("connection", async (socket) => {
        4️⃣ PEDIR CANCIÓN (ADMIN Y CLIENTES)
     ====================================================== */
     socket.on("pedir_cancion", async (data) => {
+        // Basic payload validation
+        if (!data || typeof data !== 'object' || JSON.stringify(data).length > 5000) {
+            return socket.emit('error_peticion', 'Petición inválida.');
+        }
+
         const { slug, usuario, cancion } = data;
+
+        if (!cancion || typeof cancion.titulo !== 'string' || cancion.titulo.length > 200) {
+            return socket.emit('error_peticion', 'Título inválido.');
+        }
+        if (usuario?.nombre && (typeof usuario.nombre !== 'string' || usuario.nombre.length > 60)) {
+            return socket.emit('error_peticion', 'Nombre de usuario inválido.');
+        }
 
         // Rate limiting: 1 request per 30 seconds per socket
         if (!socket.isAdmin) {
