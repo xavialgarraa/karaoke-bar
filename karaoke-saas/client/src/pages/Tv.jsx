@@ -450,6 +450,18 @@ const KaraokeTV = () => {
     return () => cancelAnimationFrame(rafId);
   }, [lyrics]);
 
+  // --- ACCESS GUARD ---
+  const tvToken = searchParams.get('t') || localStorage.getItem('karaoke_token');
+  if (!tvToken) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', fontFamily: 'system-ui, sans-serif', gap: 16 }}>
+        <img src={vokaraLogo} alt="Vokara" style={{ height: 56, width: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }} />
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Acceso restringido</h2>
+        <p style={{ color: '#666', margin: 0 }}>Abre la TV desde el panel de administración.</p>
+      </div>
+    );
+  }
+
   // --- START SCREEN ---
   if (!hasStarted) {
     return (
