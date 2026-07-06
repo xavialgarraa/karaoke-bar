@@ -178,11 +178,58 @@ function getDuration(filePath) {
 
 // ─── VOCAL REMOVAL ─────────────────────────────────────────────────────────
 
-function removeVocals(dir) {
+// Spleeter outputs WAV into: {spleeterOut}/{inputBasename}/accompaniment.wav
+async function removeVocals(dir) {
   const input  = path.join(dir, 'audio.mp3');
   const output = path.join(dir, 'instrumental.mp3');
-  if (fs.existsSync(output)) return Promise.resolve();
+  if (fs.existsSync(output)) return;
 
+  const ok = await tryVocalRemovalSpleeter(input, output, dir);
+  if (!ok) await tryVocalRemovalFfmpeg(input, output);
+}
+
+function tryVocalRemovalSpleeter(input, output, dir) {
+  const spleeterOut = path.join(dir, 'spleeter_out');
+  // Spleeter creates: spleeterOut/audio/accompaniment.wav  (named after input file without ext)
+  const accompaniment = path.join(spleeterOut, 'audio', 'accompaniment.wav');
+
+  return new Promise((resolve) => {
+    const proc = spawn('spleeter', [
+      'separate',
+      '-p', 'spleeter:2stems',
+      '-o', spleeterOut,
+      input,
+    ]);
+
+    proc.on('close', async (code) => {
+      if (code !== 0 || !fs.existsSync(accompaniment)) {
+        console.warn('⚠️  Spleeter falló o no está instalado, usando ffmpeg pan');
+        return resolve(false);
+      }
+
+      // Convert accompaniment.wav → instrumental.mp3
+      const converted = await new Promise((res) => {
+        const ff = spawn('ffmpeg', ['-i', accompaniment, '-q:a', '2', '-y', output]);
+        ff.on('close', c => res(c === 0));
+        ff.on('error', () => res(false));
+      });
+
+      // Cleanup temporary WAV files
+      try { fs.rmSync(spleeterOut, { recursive: true, force: true }); } catch {}
+
+      if (converted) console.log('🎛️  Vocal removal OK (Spleeter)');
+      else console.warn('⚠️  Conversión WAV→MP3 falló');
+      resolve(converted);
+    });
+
+    proc.on('error', () => {
+      console.warn('⚠️  Spleeter no encontrado, usando ffmpeg pan');
+      resolve(false);
+    });
+  });
+}
+
+function tryVocalRemovalFfmpeg(input, output) {
   return new Promise((resolve) => {
     const ff = spawn('ffmpeg', [
       '-i', input,
@@ -190,8 +237,8 @@ function removeVocals(dir) {
       '-y', output,
     ]);
     ff.on('close', (code) => {
-      if (code === 0) console.log('🎛️  Vocal removal OK');
-      else console.warn('⚠️  Vocal removal falló, usando audio original');
+      if (code === 0) console.log('🎛️  Vocal removal OK (ffmpeg pan)');
+      else console.warn('⚠️  Vocal removal falló, se usará audio original');
       resolve();
     });
     ff.on('error', () => { console.warn('⚠️  ffmpeg no encontrado'); resolve(); });
