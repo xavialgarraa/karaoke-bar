@@ -190,12 +190,12 @@ async function removeVocals(dir) {
 
 function tryVocalRemovalDemucs(input, output, dir) {
   const demucsOut = path.join(dir, 'demucs_out');
-  // Demucs creates: demucsOut/htdemucs/audio/no_vocals.wav
-  const noVocals = path.join(demucsOut, 'htdemucs', 'audio', 'no_vocals.wav');
+  const noVocals = path.join(demucsOut, 'mdx_q', 'audio', 'no_vocals.wav');
 
   return new Promise((resolve) => {
     const proc = spawn('demucs', [
       '--two-stems', 'vocals',
+      '--model', 'mdx_q',
       '--out', demucsOut,
       '--device', 'cpu',
       '--mp3',
@@ -203,12 +203,15 @@ function tryVocalRemovalDemucs(input, output, dir) {
       input,
     ]);
 
-    proc.stderr.on('data', d => process.stdout.write(d)); // stream progress
+    proc.stderr.on('data', d => {
+      const s = d.toString();
+      if (!s.includes('NNPACK')) process.stdout.write(d);
+    });
 
     proc.on('close', async (code) => {
       // Demucs with --mp3 outputs .mp3 directly
       const noVocalsAny = [
-        path.join(demucsOut, 'htdemucs', 'audio', 'no_vocals.mp3'),
+        path.join(demucsOut, 'mdx_q', 'audio', 'no_vocals.mp3'),
         noVocals,
       ].find(p => fs.existsSync(p));
 
