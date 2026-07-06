@@ -7,7 +7,8 @@ function youtubeSearch(query, apiKey) {
         part: 'snippet',
         q: query,
         type: 'video',
-        maxResults: '25',
+        videoCategoryId: '10', // Music category
+        maxResults: '12',
         key: apiKey,
     });
     return new Promise((resolve, reject) => {
@@ -122,7 +123,7 @@ function lrcSearch(track, artist, expectedArtists, duration) {
                             r.syncedLyrics &&
                             titleMatches(r.trackName, track) &&
                             artistMatches(r.artistName, expectedArtists) &&
-                            (!duration || Math.abs((r.duration || 0) - duration) <= 5)
+                            (!duration || Math.abs((r.duration || 0) - duration) <= 2)
                         );
                         resolve(!!hit);
                     } catch { resolve(false); }
@@ -212,27 +213,36 @@ const searchVideos = async (req, res) => {
             canal: item.snippet.channelTitle,
         }));
 
-        // 2b. Ordenar: vídeos oficiales primero (mejor coincidencia de duración con LRCLib)
+        // 2b. Puntuar oficialidad — los canales oficiales tienen la duración exacta de la release
         const officialScore = (v) => {
             const ch = (v.canal || '').toLowerCase();
             const ti = (v.titulo || '').toLowerCase();
-            if (ch.includes('vevo')) return 4;
-            if (ch.includes('official') || ti.includes('video oficial') || ti.includes('official video')) return 3;
-            if (ti.includes('audio oficial') || ti.includes('official audio') || ti.includes('official music video')) return 2;
-            if (ch.includes('music') || ch.includes('records')) return 1;
+            // VEVO: siempre es la release oficial exacta
+            if (ch.includes('vevo')) return 6;
+            // "Artist - Topic": canal auto de YouTube Music, duración de streaming = exacta
+            if (/- topic$/.test(ch)) return 5;
+            // Canal con "official" en el nombre (canal del artista)
+            if (ch.includes('official') || ch.includes('oficial')) return 4;
+            // Marcadores de video oficial en el título
+            if (ti.includes('video oficial') || ti.includes('official video') || ti.includes('official music video')) return 3;
+            // Audio oficial
+            if (ti.includes('audio oficial') || ti.includes('official audio')) return 2;
+            // Sellos discográficos
+            if (ch.includes('music') || ch.includes('records') || ch.includes('entertainment') ||
+                ch.includes('universal') || ch.includes('sony') || ch.includes('warner')) return 1;
             return 0;
         };
         videosAPI.sort((a, b) => officialScore(b) - officialScore(a));
 
-        // 3. Obtener duraciones (1 unidad de cuota para todos)
-        const top8 = videosAPI.slice(0, 8);
-        const durations = await getVideoDurations(top8.map(v => v.id), apiKey);
-        console.log(`⏱️  Duraciones: ${top8.map(v => `${v.id}=${durations[v.id]}s`).join(', ')}`);
+        // 3. Obtener duraciones de los top 5 (1 cuota total)
+        const top5 = videosAPI.slice(0, 5);
+        const durations = await getVideoDurations(top5.map(v => v.id), apiKey);
+        console.log(`⏱️  Duraciones: ${top5.map(v => `${v.id}[${officialScore(v)}]=${durations[v.id]}s`).join(', ')}`);
 
-        // 4. Buscar el primer resultado con letras confirmadas en LRCLib (GET+duration → SEARCH)
+        // 4. Primer resultado con letras confirmadas (±2s como LRCLib, solo oficiales)
         console.log("🎵 Buscando mejor resultado con letras en LRCLib...");
         let mejor = null;
-        for (const video of top8) {
+        for (const video of top5) {
             const hasLyrics = await checkLrcLib(video.titulo, video.canal, durations[video.id], query);
             if (hasLyrics) { mejor = video; break; }
         }

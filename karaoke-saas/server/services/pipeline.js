@@ -322,7 +322,7 @@ async function getLyricsBySearch(track, artist, expectedArtists, duration) {
       x.syncedLyrics &&
       titleMatches(x.trackName, track) &&
       artistOk(x.artistName) &&
-      (!duration || Math.abs((x.duration || 0) - duration) <= 5)
+      (!duration || Math.abs((x.duration || 0) - duration) <= 2)
     );
     return hit?.syncedLyrics || null;
   } catch { return null; }

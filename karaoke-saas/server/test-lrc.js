@@ -86,7 +86,7 @@ async function main() {
             const na = normTrack(ea); const nb = normTrack(x.artistName || '');
             return na && nb && (na.includes(nb) || nb.includes(na));
           });
-          const durOk = !duration || Math.abs((x.duration || 0) - duration) <= 5;
+          const durOk = !duration || Math.abs((x.duration || 0) - duration) <= 2;
           const match = x.syncedLyrics && tm && artistOk && durOk;
           console.log(`  [${i}] "${x.trackName}" by "${x.artistName}" dur=${x.duration}s | synced=${!!x.syncedLyrics} titleMatch=${tm} artistMatch=${artistOk} durMatch=${durOk} => ${match ? '✅ MATCH' : '❌'}`);
         });
