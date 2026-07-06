@@ -184,46 +184,62 @@ async function removeVocals(dir) {
   const output = path.join(dir, 'instrumental.mp3');
   if (fs.existsSync(output)) return;
 
-  const ok = await tryVocalRemovalSpleeter(input, output, dir);
+  const ok = await tryVocalRemovalDemucs(input, output, dir);
   if (!ok) await tryVocalRemovalFfmpeg(input, output);
 }
 
-function tryVocalRemovalSpleeter(input, output, dir) {
-  const spleeterOut = path.join(dir, 'spleeter_out');
-  // Spleeter creates: spleeterOut/audio/accompaniment.wav  (named after input file without ext)
-  const accompaniment = path.join(spleeterOut, 'audio', 'accompaniment.wav');
+function tryVocalRemovalDemucs(input, output, dir) {
+  const demucsOut = path.join(dir, 'demucs_out');
+  // Demucs creates: demucsOut/htdemucs/audio/no_vocals.wav
+  const noVocals = path.join(demucsOut, 'htdemucs', 'audio', 'no_vocals.wav');
 
   return new Promise((resolve) => {
-    const proc = spawn('spleeter', [
-      'separate',
-      '-p', 'spleeter:2stems',
-      '-o', spleeterOut,
+    const proc = spawn('demucs', [
+      '--two-stems', 'vocals',
+      '--out', demucsOut,
+      '--device', 'cpu',
+      '--mp3',
+      '--mp3-bitrate', '192',
       input,
     ]);
 
+    proc.stderr.on('data', d => process.stdout.write(d)); // stream progress
+
     proc.on('close', async (code) => {
-      if (code !== 0 || !fs.existsSync(accompaniment)) {
-        console.warn('⚠️  Spleeter falló o no está instalado, usando ffmpeg pan');
+      // Demucs with --mp3 outputs .mp3 directly
+      const noVocalsAny = [
+        path.join(demucsOut, 'htdemucs', 'audio', 'no_vocals.mp3'),
+        noVocals,
+      ].find(p => fs.existsSync(p));
+
+      if (code !== 0 || !noVocalsAny) {
+        console.warn('⚠️  Demucs falló o no está instalado, usando ffmpeg pan');
+        try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
         return resolve(false);
       }
 
-      // Convert accompaniment.wav → instrumental.mp3
+      // Move/convert to instrumental.mp3
+      if (noVocalsAny.endsWith('.mp3')) {
+        fs.renameSync(noVocalsAny, output);
+        try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
+        console.log('🎛️  Vocal removal OK (Demucs)');
+        return resolve(true);
+      }
+
+      // WAV fallback: convert to mp3
       const converted = await new Promise((res) => {
-        const ff = spawn('ffmpeg', ['-i', accompaniment, '-q:a', '2', '-y', output]);
+        const ff = spawn('ffmpeg', ['-i', noVocalsAny, '-q:a', '2', '-y', output]);
         ff.on('close', c => res(c === 0));
         ff.on('error', () => res(false));
       });
-
-      // Cleanup temporary WAV files
-      try { fs.rmSync(spleeterOut, { recursive: true, force: true }); } catch {}
-
-      if (converted) console.log('🎛️  Vocal removal OK (Spleeter)');
+      try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
+      if (converted) console.log('🎛️  Vocal removal OK (Demucs)');
       else console.warn('⚠️  Conversión WAV→MP3 falló');
       resolve(converted);
     });
 
     proc.on('error', () => {
-      console.warn('⚠️  Spleeter no encontrado, usando ffmpeg pan');
+      console.warn('⚠️  Demucs no encontrado, usando ffmpeg pan');
       resolve(false);
     });
   });
