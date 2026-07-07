@@ -167,7 +167,7 @@ io.on("connection", async (socket) => {
     ====================================================== */
     socket.on("pedir_cancion", async (data) => {
         // Basic payload validation
-        if (!data || typeof data !== 'object' || JSON.stringify(data).length > 5000) {
+        if (!data || typeof data !== 'object' || JSON.stringify(data).length > 50000) {
             return socket.emit('error_peticion', 'Petición inválida.');
         }
 
