@@ -195,7 +195,7 @@ function tryVocalRemovalDemucs(input, output, dir) {
   return new Promise((resolve) => {
     const proc = spawn('demucs', [
       '--two-stems', 'vocals',
-      '--model', 'mdx_q',
+      '-n', 'mdx_q',
       '--out', demucsOut,
       '--device', 'cpu',
       '--mp3',
