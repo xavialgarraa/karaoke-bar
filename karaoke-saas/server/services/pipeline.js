@@ -178,70 +178,50 @@ function getDuration(filePath) {
 
 // ─── VOCAL REMOVAL ─────────────────────────────────────────────────────────
 
-// Spleeter outputs WAV into: {spleeterOut}/{inputBasename}/accompaniment.wav
 async function removeVocals(dir) {
   const input  = path.join(dir, 'audio.mp3');
   const output = path.join(dir, 'instrumental.mp3');
   if (fs.existsSync(output)) return;
 
-  await tryVocalRemovalFfmpeg(input, output);
+  const ok = await tryVocalRemovalVR(input, output, dir);
+  if (!ok) await tryVocalRemovalFfmpeg(input, output);
 }
 
-function tryVocalRemovalDemucs(input, output, dir) {
-  const demucsOut = path.join(dir, 'demucs_out');
-  const noVocals = path.join(demucsOut, 'mdx', 'audio', 'no_vocals.wav');
+function tryVocalRemovalVR(input, output, dir) {
+  const wavOut = path.join(dir, 'audio_Instruments.wav');
 
   return new Promise((resolve) => {
-    const proc = spawn('demucs', [
-      '--two-stems', 'vocals',
-      '-n', 'mdx',
-      '--out', demucsOut,
-      '--device', 'cpu',
-      '--mp3',
-      '--mp3-bitrate', '192',
-      input,
+    const proc = spawn('/opt/vr-env/bin/python', [
+      '/opt/vocal-remover/inference.py',
+      '--input', input,
+      '--output_dir', dir,
     ]);
 
     proc.stderr.on('data', d => {
       const s = d.toString();
-      if (!s.includes('NNPACK')) process.stdout.write(d);
+      if (!s.includes('NNPACK') && !s.includes('libmpg123')) process.stdout.write(d);
     });
+    proc.stdout.on('data', d => process.stdout.write(d));
 
     proc.on('close', async (code) => {
-      // Demucs with --mp3 outputs .mp3 directly
-      const noVocalsAny = [
-        path.join(demucsOut, 'mdx', 'audio', 'no_vocals.mp3'),
-        noVocals,
-      ].find(p => fs.existsSync(p));
-
-      if (code !== 0 || !noVocalsAny) {
-        console.warn('⚠️  Demucs falló o no está instalado, usando ffmpeg pan');
-        try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
+      if (code !== 0 || !fs.existsSync(wavOut)) {
+        console.warn('⚠️  vocal-remover falló, usando ffmpeg pan');
         return resolve(false);
       }
-
-      // Move/convert to instrumental.mp3
-      if (noVocalsAny.endsWith('.mp3')) {
-        fs.renameSync(noVocalsAny, output);
-        try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
-        console.log('🎛️  Vocal removal OK (Demucs)');
-        return resolve(true);
-      }
-
-      // WAV fallback: convert to mp3
       const converted = await new Promise((res) => {
-        const ff = spawn('ffmpeg', ['-i', noVocalsAny, '-q:a', '2', '-y', output]);
+        const ff = spawn('ffmpeg', ['-i', wavOut, '-q:a', '2', '-y', output]);
         ff.on('close', c => res(c === 0));
         ff.on('error', () => res(false));
       });
-      try { fs.rmSync(demucsOut, { recursive: true, force: true }); } catch {}
-      if (converted) console.log('🎛️  Vocal removal OK (Demucs)');
+      try { fs.unlinkSync(wavOut); } catch {}
+      try { fs.unlinkSync(path.join(dir, 'audio_Vocals.wav')); } catch {}
+      if (converted) console.log('🎛️  Vocal removal OK (vocal-remover)');
       else console.warn('⚠️  Conversión WAV→MP3 falló');
       resolve(converted);
     });
 
     proc.on('error', () => {
-      console.warn('⚠️  Demucs no encontrado, usando ffmpeg pan');
+      console.warn('⚠️  vocal-remover no encontrado, usando ffmpeg pan');
       resolve(false);
     });
   });
