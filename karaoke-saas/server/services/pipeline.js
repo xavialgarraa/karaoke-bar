@@ -184,8 +184,7 @@ async function removeVocals(dir) {
   const output = path.join(dir, 'instrumental.mp3');
   if (fs.existsSync(output)) return;
 
-  const ok = await tryVocalRemovalDemucs(input, output, dir);
-  if (!ok) await tryVocalRemovalFfmpeg(input, output);
+  await tryVocalRemovalFfmpeg(input, output);
 }
 
 function tryVocalRemovalDemucs(input, output, dir) {
