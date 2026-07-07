@@ -190,12 +190,12 @@ async function removeVocals(dir) {
 
 function tryVocalRemovalDemucs(input, output, dir) {
   const demucsOut = path.join(dir, 'demucs_out');
-  const noVocals = path.join(demucsOut, 'mdx_q', 'audio', 'no_vocals.wav');
+  const noVocals = path.join(demucsOut, 'mdx', 'audio', 'no_vocals.wav');
 
   return new Promise((resolve) => {
     const proc = spawn('demucs', [
       '--two-stems', 'vocals',
-      '-n', 'mdx_q',
+      '-n', 'mdx',
       '--out', demucsOut,
       '--device', 'cpu',
       '--mp3',
@@ -211,7 +211,7 @@ function tryVocalRemovalDemucs(input, output, dir) {
     proc.on('close', async (code) => {
       // Demucs with --mp3 outputs .mp3 directly
       const noVocalsAny = [
-        path.join(demucsOut, 'mdx_q', 'audio', 'no_vocals.mp3'),
+        path.join(demucsOut, 'mdx', 'audio', 'no_vocals.mp3'),
         noVocals,
       ].find(p => fs.existsSync(p));
 
