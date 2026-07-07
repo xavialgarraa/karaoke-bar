@@ -235,7 +235,13 @@ io.on("connection", async (socket) => {
                 cancion.cover
             ]);
 
-            // B. Turno
+            // B. Avisar al cliente que empieza el pipeline
+            socket.emit("pipeline_iniciado", { videoId, titulo: cancion.titulo });
+
+            // C. Esperar a que el pipeline termine (descarga + vocal removal + letras)
+            await pipeline.processSong(videoId, cancion.titulo, cancion.artista).catch(console.error);
+
+            // D. Turno (ahora que el audio está listo)
             const [countRows] = await pool.query(
                 "SELECT COUNT(*) as count FROM peticiones WHERE bar_id = ? AND estado = 'espera'",
                 [barId]
@@ -244,9 +250,9 @@ io.on("connection", async (socket) => {
             const turno = countRows[0].count + 1;
             const tiempoEspera = (turno - 1) * 4;
 
-            // C. Insertar petición
+            // E. Insertar petición
             const [insertResult] = await pool.query(`
-                INSERT INTO peticiones 
+                INSERT INTO peticiones
                 (bar_id, video_id, titulo, artista, cover_url, usuario_nombre, usuario_avatar, estado, turno_numero)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'espera', ?)
             `, [
@@ -271,10 +277,7 @@ io.on("connection", async (socket) => {
                 turno_numero: turno
             };
 
-            // D. Procesar en background (descarga audio + letras)
-            pipeline.processSong(videoId, cancion.titulo, cancion.artista).catch(console.error);
-
-            // E. Emitir eventos
+            // F. Emitir eventos
             socket.emit("turno_confirmado", {
                 turno,
                 tiempoEspera,

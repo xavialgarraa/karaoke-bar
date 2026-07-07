@@ -47,6 +47,17 @@ const VistaCliente = () => {
   return <AppContent slug={slug} isSimulator={false} />;
 };
 
+const PROCESSING_PHRASES = [
+  'Silenciando la voz del artista... 🎤',
+  'Aplicando magia de estudio ✨',
+  'Eliminando al cantante original... sin rencores 😅',
+  'Preparando la pista para tu momento de gloria 🌟',
+  'El DJ está trabajando en ello... ⏳',
+  'Procesando con IA, aguanta que vale la pena 🤖',
+  'Quitando la voz, no el ritmo 🎵',
+  'Casi listo, ya falta menos 🚀',
+];
+
 // --- LÓGICA DE LA APP ---
 const AppContent = ({ slug, isSimulator }) => {
   const navigate = useNavigate();
@@ -68,6 +79,12 @@ const AppContent = ({ slug, isSimulator }) => {
   const [enviado, setEnviado] = useState(false);
   const [miTicket, setMiTicket] = useState(null);
   const [estadoCola, setEstadoCola] = useState({ personasDelante: 0, tiempoEspera: 0, esMiTurno: false });
+
+  // PIPELINE PROCESSING STATE
+  const [procesando, setProcesando] = useState(false);
+  const [procesandoTitulo, setProcesandoTitulo] = useState('');
+  const [procesandoElapsed, setProcesandoElapsed] = useState(0);
+  const [procesandoPhraseIdx, setProcesandoPhraseIdx] = useState(0);
 
   // FIX Bug 1: ref to always hold latest miTicket without causing socket reconnects
   const miTicketRef = useRef(null);
@@ -175,9 +192,19 @@ const AppContent = ({ slug, isSimulator }) => {
         }
     });
 
+    // A0. PIPELINE INICIADO — mostrar pantalla de preparación
+    socketRef.current.on('pipeline_iniciado', ({ titulo }) => {
+        setProcesandoTitulo(titulo);
+        setProcesando(true);
+        setProcesandoElapsed(0);
+        setProcesandoPhraseIdx(0);
+        setBuscando(false);
+    });
+
     // A. CONFIRMACIÓN DE PEDIDO
     socketRef.current.on('turno_confirmado', (data) => {
         console.log("🎟️ Ticket recibido:", data);
+        setProcesando(false);
         setMiTicket(data);
         miTicketRef.current = data;
         setEnviado(true);
@@ -269,11 +296,20 @@ const AppContent = ({ slug, isSimulator }) => {
     reader.readAsDataURL(file);
   };
 
+  // Timer de procesado
+  useEffect(() => {
+    if (!procesando) return;
+    const timer = setInterval(() => setProcesandoElapsed(e => e + 1), 1000);
+    const phraseTimer = setInterval(() => setProcesandoPhraseIdx(i => (i + 1) % PROCESSING_PHRASES.length), 7000);
+    return () => { clearInterval(timer); clearInterval(phraseTimer); };
+  }, [procesando]);
+
   const resetear = () => {
     localStorage.removeItem(sessionKey);
     prevPositionRef.current = null;
     setEnviado(false); setBusqueda(''); setMiTicket(null); miTicketRef.current = null;
     setResultados([]); setEstadoCola({ personasDelante:0, tiempoEspera:0, esMiTurno:false });
+    setProcesando(false); setProcesandoElapsed(0);
   };
 
   const containerStyle = isSimulator ? styles.simulatorContainer : styles.container;
@@ -380,6 +416,52 @@ const AppContent = ({ slug, isSimulator }) => {
                   ))
                 )}
               </div>
+            </motion.div>
+          )}
+
+          {/* PASO 2.5: PROCESANDO PIPELINE */}
+          {procesando && !enviado && (
+            <motion.div
+              key="procesando"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              style={styles.card}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎛️</div>
+              <h2 style={{ ...styles.titleGradient, fontSize: '16px', marginBottom: '8px', textAlign: 'center' }}>
+                Preparando tu karaoke
+              </h2>
+              <p style={{ color: '#888', fontSize: '13px', fontWeight: '600', marginBottom: '4px', textAlign: 'center', maxWidth: '260px' }}>
+                {procesandoTitulo}
+              </p>
+
+              <div style={{ margin: '24px 0 8px', width: '64px', height: '64px', position: 'relative' }}>
+                <svg width="64" height="64" style={{ transform: 'rotate(-90deg)' }}>
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="4" />
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="#00f2ff" strokeWidth="4"
+                    strokeDasharray={`${2 * Math.PI * 28}`}
+                    strokeDashoffset={`${2 * Math.PI * 28 * (1 - (procesandoElapsed % 60) / 60)}`}
+                    style={{ transition: 'stroke-dashoffset 0.9s linear' }}
+                  />
+                </svg>
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#00f2ff', fontFamily: 'monospace', fontWeight: '700' }}>
+                  {Math.floor(procesandoElapsed / 60)}:{String(procesandoElapsed % 60).padStart(2, '0')}
+                </div>
+              </div>
+
+              <motion.p
+                key={procesandoPhraseIdx}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{ color: '#aaa', fontSize: '13px', textAlign: 'center', maxWidth: '260px', marginBottom: '8px', minHeight: '40px' }}
+              >
+                {PROCESSING_PHRASES[procesandoPhraseIdx]}
+              </motion.p>
+
+              <p style={{ color: '#444', fontSize: '11px', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                Tiempo estimado ~6 min
+              </p>
             </motion.div>
           )}
 

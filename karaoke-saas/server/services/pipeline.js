@@ -6,7 +6,8 @@ const { spawn } = require('child_process');
 const pool  = require('../config/db');
 
 const PROCESSED_DIR = path.join(__dirname, '../processed');
-const statusMap = new Map(); // videoId -> 'processing' | 'error'
+const statusMap = new Map(); // videoId -> 'processing' | 'error' | 'ready'
+const pendingResolvers = new Map(); // videoId -> [resolve callbacks]
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 function assertVideoId(videoId) {
@@ -44,17 +45,31 @@ async function getStatus(videoId) {
 async function processSong(videoId, titulo, artista) {
   assertVideoId(videoId);
   const status = await getStatus(videoId);
-  if (status === 'ready' || status === 'processing') return;
+
+  if (status === 'ready') return;
+
+  if (status === 'processing') {
+    // Wait for the already-running pipeline to finish
+    return new Promise((resolve) => {
+      if (!pendingResolvers.has(videoId)) pendingResolvers.set(videoId, []);
+      pendingResolvers.get(videoId).push(resolve);
+    });
+  }
 
   const dir = path.join(PROCESSED_DIR, videoId);
   fs.mkdirSync(dir, { recursive: true });
   statusMap.set(videoId, 'processing');
 
+  const settle = () => {
+    const resolvers = pendingResolvers.get(videoId) || [];
+    resolvers.forEach(r => r());
+    pendingResolvers.delete(videoId);
+  };
+
   try {
     const duration = await downloadAudio(videoId, dir);
     await removeVocals(dir);
 
-    // Marcar audio listo en BD
     await pool.query(
       'UPDATE catalogo_canciones SET audio_ready = 1 WHERE video_id = ?',
       [videoId]
@@ -71,9 +86,11 @@ async function processSong(videoId, titulo, artista) {
 
     statusMap.set(videoId, 'ready');
     console.log(`✅ Pipeline listo: ${titulo}`);
+    settle();
   } catch (err) {
     statusMap.set(videoId, 'error');
     console.error(`❌ Pipeline error (${videoId}):`, err.message);
+    settle(); // resolve waiters even on error so clients don't hang
   }
 }
 
